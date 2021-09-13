@@ -1,0 +1,17 @@
+domain: onmetal.de
+layout:
+- go.kubebuilder.io/v3
+multigroup: true
+projectName: matryoshka
+repo: github.com/onmetal/matryoshka
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: onmetal.de
+  group: matryoshka
+  kind: Kubeconfig
+  path: github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1
+  version: v1alpha1
+version: "3"

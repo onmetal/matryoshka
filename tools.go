@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package condition_test
+//go:build tools
+
+package utils
 
 import (
-	"testing"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	// Use mockgen for generating mocks.
+	_ "github.com/golang/mock/mockgen"
+	// Use addlicense for adding license headers.
+	_ "github.com/google/addlicense"
 )
-
-func TestCondition(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Condition Suite")
-}

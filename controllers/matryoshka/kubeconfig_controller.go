@@ -24,6 +24,7 @@ import (
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	"github.com/onmetal/matryoshka/pkg/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd/api/latest"
@@ -39,44 +40,39 @@ import (
 // KubeconfigReconciler reconciles a Kubeconfig object
 type KubeconfigReconciler struct {
 	client.Client
-	resolver *kubeconfig.Resolver
 	Scheme   *runtime.Scheme
+	resolver *kubeconfig.Resolver
 }
 
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeconfigs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeconfigs/finalizers,verbs=update
+//+kubebuilder:rbac:groups=v1,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=v1,resources=configmaps,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Kubeconfig object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *KubeconfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	kubeconfig := &matryoshkav1alpha1.Kubeconfig{}
-	if err := r.Get(ctx, req.NamespacedName, kubeconfig); err != nil {
+	kc := &matryoshkav1alpha1.Kubeconfig{}
+	if err := r.Get(ctx, req.NamespacedName, kc); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	return r.reconcileExists(ctx, log, kubeconfig)
+	return r.reconcileExists(ctx, log, kc)
 }
 
-func (r *KubeconfigReconciler) reconcileExists(ctx context.Context, log logr.Logger, kubeconfig *matryoshkav1alpha1.Kubeconfig) (ctrl.Result, error) {
-	if !kubeconfig.DeletionTimestamp.IsZero() {
-		return r.delete(ctx, log, kubeconfig)
+func (r *KubeconfigReconciler) reconcileExists(ctx context.Context, log logr.Logger, kc *matryoshkav1alpha1.Kubeconfig) (ctrl.Result, error) {
+	if !kc.DeletionTimestamp.IsZero() {
+		return r.delete(ctx, log, kc)
 	}
-	return r.reconcile(ctx, log, kubeconfig)
+	return r.reconcile(ctx, log, kc)
 }
 
-func (r *KubeconfigReconciler) reconcile(ctx context.Context, log logr.Logger, kubeconfig *matryoshkav1alpha1.Kubeconfig) (ctrl.Result, error) {
+func (r *KubeconfigReconciler) reconcile(ctx context.Context, log logr.Logger, kc *matryoshkav1alpha1.Kubeconfig) (ctrl.Result, error) {
 	log.V(1).Info("Resolving kubeconfig")
-	config, err := r.resolver.Resolve(ctx, kubeconfig)
+	config, err := r.resolver.Resolve(ctx, kc)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not resolve kubeconfig: %w", err)
 	}
@@ -94,14 +90,14 @@ func (r *KubeconfigReconciler) reconcile(ctx context.Context, log logr.Logger, k
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: kubeconfig.Namespace,
-			Name:      kubeconfig.Spec.SecretName,
+			Namespace: kc.Namespace,
+			Name:      kc.Spec.SecretName,
 		},
 		Data: map[string][]byte{
 			matryoshkav1alpha1.DefaultKubeconfigKey: b.Bytes(),
 		},
 	}
-	if err := ctrl.SetControllerReference(kubeconfig, secret, r.Scheme); err != nil {
+	if err := ctrl.SetControllerReference(kc, secret, r.Scheme); err != nil {
 		return ctrl.Result{}, fmt.Errorf("error setting secret owner reference: %w", err)
 	}
 	if err := r.Patch(ctx, secret, client.Apply, client.FieldOwner(matryoshkav1alpha1.KubeconfigFieldManager)); err != nil {
@@ -129,28 +125,34 @@ func (r *KubeconfigReconciler) init() error {
 	return nil
 }
 
-func (r *KubeconfigReconciler) enqueueRequestsForUsingKubeconfigs(obj client.Object) []reconcile.Request {
+func (r *KubeconfigReconciler) enqueueReferencingKubeconfigs(obj client.Object) []reconcile.Request {
 	ctx := context.Background()
-	log := ctrl.LoggerFrom(ctx, "triggerGVK", obj.GetObjectKind().GroupVersionKind(), "triggerKey", client.ObjectKeyFromObject(obj))
+	log := ctrl.Log.WithName("kubeconfig").WithName("enqueueReferencingKubeconfigs")
 	kubeconfigs := &matryoshkav1alpha1.KubeconfigList{}
 	if err := r.List(ctx, kubeconfigs, client.InNamespace(obj.GetNamespace())); err != nil {
+		log.Error(err, "Could not list kubeconfigs in namespace", "namespace", obj.GetNamespace())
 		return nil
 	}
 
 	var requests []reconcile.Request
-	for _, kubeconfig := range kubeconfigs.Items {
-		kubeconfigKey := client.ObjectKeyFromObject(&kubeconfig)
-		log := log.WithValues("kubeconfig", kubeconfigKey)
+	for _, kc := range kubeconfigs.Items {
+		key := client.ObjectKeyFromObject(&kc)
+		log := log.WithValues("kubeconfig", key)
 
-		ok, err := r.resolver.UsesObject(&kubeconfig, obj)
+		refs, err := r.resolver.ObjectReferences(ctx, &kc)
 		if err != nil {
-			log.Error(err, "Error determining uses")
+			log.Error(err, "Error determining references")
 			continue
 		}
 
-		if ok {
-			requests = append(requests, reconcile.Request{NamespacedName: kubeconfigKey})
+		if err := refs.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object)); err != nil {
+			if !apierrors.IsNotFound(err) {
+				log.Error(err, "Error determining object is referenced")
+			}
+			continue
 		}
+
+		requests = append(requests, reconcile.Request{NamespacedName: key})
 	}
 
 	return requests
@@ -166,12 +168,12 @@ func (r *KubeconfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&matryoshkav1alpha1.Kubeconfig{}).
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
-			handler.EnqueueRequestsFromMapFunc(r.enqueueRequestsForUsingKubeconfigs),
+			handler.EnqueueRequestsFromMapFunc(r.enqueueReferencingKubeconfigs),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Watches(
 			&source.Kind{Type: &corev1.ConfigMap{}},
-			handler.EnqueueRequestsFromMapFunc(r.enqueueRequestsForUsingKubeconfigs),
+			handler.EnqueueRequestsFromMapFunc(r.enqueueReferencingKubeconfigs),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{}),
 		).
 		Owns(&corev1.Secret{}).

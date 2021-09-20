@@ -43,24 +43,31 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+addlicense: ## Add license headers to all go files.
+	find . -name '*.go' -exec go run github.com/google/addlicense -c 'OnMetal authors' {} +
+
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
-vet: ## Run go vet against code.
-	go vet ./...
+.PHONY: checklicense
+checklicense: ## Check that every file has a license header present.
+	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
+
+lint: ## Lint code
+	golangci-lint run .
 
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
-test: manifests generate fmt vet ## Run tests.
+test: manifests generate fmt checklicense lint ## Run tests.
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.8.3/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test ./... -coverprofile cover.out
 
 ##@ Build
 
-build: generate fmt vet ## Build manager binary.
+build: generate fmt addlicense lint ## Build manager binary.
 	go build -o bin/manager main.go
 
-run: manifests generate fmt vet ## Run a controller from your host.
+run: manifests generate fmt addlicense lint ## Run a controller from your host.
 	go run ./main.go
 
 docker-build: test ## Build docker image with the manager.

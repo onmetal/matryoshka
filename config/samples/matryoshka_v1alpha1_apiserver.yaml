@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apiserver-etcd-sample
+  labels:
+    app: apiserver-etcd-sample
+spec:
+  selector:
+    matchLabels:
+      app: apiserver-etcd-sample
+  template:
+    metadata:
+      labels:
+        app: apiserver-etcd-sample
+    spec:
+      containers:
+        - name: etcd
+          image: quay.io/coreos/etcd:v3.5.0
+          command:
+          - etcd
+          - -name=apiserver-etcd-sample
+          - -advertise-client-urls=http://0.0.0.0:2379
+          - -initial-advertise-peer-urls=http://0.0.0.0:2380
+          - -listen-client-urls=http://0.0.0.0:2379
+          - -listen-peer-urls=http://0.0.0.0:2380
+          - -initial-cluster=apiserver-etcd-sample=http://0.0.0.0:2380
+          ports:
+          - containerPort: 2379
+            name: etcd
+            protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apiserver-etcd-sample
+  labels:
+    app: apiserver-etcd-sample
+spec:
+  selector:
+    app: apiserver-etcd-sample
+  ports:
+  - port: 2379
+    name: etcd
+    protocol: TCP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: apiserver-token-sample
+stringData:
+  token.csv: some-token,admin,admin,system:masters
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: apiserver-service-account-sample
+stringData:
+  tls.key: |
+    -----BEGIN PRIVATE KEY-----
+    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
+    HMGmb3qLdk4kYZmlK0/Edz5u/QF50j8=
+    -----END PRIVATE KEY-----
+---
+apiVersion: matryoshka.onmetal.de/v1alpha1
+kind: APIServer
+metadata:
+  name: apiserver-sample
+spec:
+  replicas: 1
+  version: 1.22.1
+  etcd:
+    servers:
+    - http://apiserver-etcd-sample:2379
+  serviceAccount:
+    issuer: https://apiserver-sample:443
+    secret:
+      name: apiserver-service-account-sample
+  authentication:
+    anonymous: {}
+    token:
+      secret:
+        name: apiserver-token-sample

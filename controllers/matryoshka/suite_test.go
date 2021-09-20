@@ -17,18 +17,21 @@ limitations under the License.
 package matryoshka
 
 import (
-	"path/filepath"
-	"testing"
-
+	"context"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"path/filepath"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"testing"
 
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	//+kubebuilder:scaffold:imports
@@ -58,9 +61,13 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: true,
 	}
 
-	cfg, err := testEnv.Start()
+	var err error
+	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+
+	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
@@ -70,7 +77,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
-
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -78,3 +84,37 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func SetupTest(ctx context.Context) *corev1.Namespace {
+	ns := &corev1.Namespace{}
+
+	mgrCtx, cancelMgr := context.WithCancel(ctx)
+
+	BeforeEach(func() {
+		*ns = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "foo"},
+		}
+		Expect(k8sClient.Create(ctx, ns)).To(Succeed(), "failed to create test namespace")
+
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+			MetricsBindAddress: "0",
+		})
+		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
+
+		Expect((&APIServerReconciler{
+			Scheme: mgr.GetScheme(),
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup api server controller")
+
+		go func() {
+			Expect(mgr.Start(mgrCtx)).To(Succeed())
+		}()
+	})
+
+	AfterEach(func() {
+		cancelMgr()
+		Expect(k8sClient.Delete(ctx, ns)).To(Succeed(), "failed to delete test namespace")
+	})
+
+	return ns
+}

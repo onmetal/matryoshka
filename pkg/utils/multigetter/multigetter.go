@@ -1,10 +1,23 @@
+// Copyright 2021 OnMetal authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package multigetter
 
 import (
 	"context"
 	"fmt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -12,7 +25,6 @@ import (
 
 type Multigetter struct {
 	client    client.Client
-	scheme    *runtime.Scheme
 	threshold *Threshold
 }
 
@@ -21,7 +33,25 @@ type Request struct {
 	Object client.Object
 }
 
-type Group struct {
+func RequestFromObject(obj client.Object) Request {
+	return Request{
+		Key:    client.ObjectKeyFromObject(obj),
+		Object: obj,
+	}
+}
+
+func RequestsFromObjects(objs []client.Object) []Request {
+	if objs == nil {
+		return nil
+	}
+	res := make([]Request, 0, len(objs))
+	for _, obj := range objs {
+		res = append(res, RequestFromObject(obj))
+	}
+	return res
+}
+
+type group struct {
 	GVK      schema.GroupVersionKind
 	Requests []Request
 }
@@ -99,7 +129,7 @@ func (t *Threshold) Get(gvk schema.GroupVersionKind) ThresholdValue {
 	return t.Global
 }
 
-func (m *Multigetter) shouldList(group Group) bool {
+func (m *Multigetter) shouldList(group group) bool {
 	if len(group.Requests) <= 1 {
 		return false
 	}
@@ -110,10 +140,10 @@ func (m *Multigetter) shouldList(group Group) bool {
 	return int(threshold) <= len(group.Requests)
 }
 
-func (m *Multigetter) groupRequests(requests []Request) ([]Group, error) {
+func (m *Multigetter) groupRequests(requests []Request) ([]group, error) {
 	gvkToRequests := make(map[schema.GroupVersionKind][]Request)
 	for i, request := range requests {
-		gvk, err := apiutil.GVKForObject(request.Object, m.scheme)
+		gvk, err := apiutil.GVKForObject(request.Object, m.client.Scheme())
 		if err != nil {
 			return nil, fmt.Errorf("[request %d]: could not determine gvk: %w", i, err)
 		}
@@ -121,9 +151,9 @@ func (m *Multigetter) groupRequests(requests []Request) ([]Group, error) {
 		gvkToRequests[gvk] = append(gvkToRequests[gvk], request)
 	}
 
-	groups := make([]Group, 0, len(gvkToRequests))
+	groups := make([]group, 0, len(gvkToRequests))
 	for gvk, requests := range gvkToRequests {
-		groups = append(groups, Group{
+		groups = append(groups, group{
 			GVK:      gvk,
 			Requests: requests,
 		})
@@ -131,7 +161,7 @@ func (m *Multigetter) groupRequests(requests []Request) ([]Group, error) {
 	return groups, nil
 }
 
-func (m *Multigetter) resolveGroups(ctx context.Context, groups []Group) error {
+func (m *Multigetter) resolveGroups(ctx context.Context, groups []group) error {
 	for _, group := range groups {
 		if m.shouldList(group) {
 			if err := m.listGroup(ctx, group); err != nil {
@@ -146,7 +176,7 @@ func (m *Multigetter) resolveGroups(ctx context.Context, groups []Group) error {
 	return nil
 }
 
-func (m *Multigetter) listGroup(ctx context.Context, group Group) error {
+func (m *Multigetter) listGroup(ctx context.Context, group group) error {
 	list := &unstructured.UnstructuredList{}
 	list.SetAPIVersion(group.GVK.GroupVersion().String())
 	list.SetKind(group.GVK.Kind)
@@ -163,7 +193,7 @@ func (m *Multigetter) listGroup(ctx context.Context, group Group) error {
 	for _, obj := range list.Items {
 		key := client.ObjectKeyFromObject(&obj)
 		if dst, ok := keyToObject[key]; ok {
-			if err := m.scheme.Convert(&obj, dst, nil); err != nil {
+			if err := m.client.Scheme().Convert(&obj, dst, nil); err != nil {
 				return fmt.Errorf("error converting %s %s: %w", group.GVK, key, err)
 			}
 		}
@@ -172,7 +202,7 @@ func (m *Multigetter) listGroup(ctx context.Context, group Group) error {
 	return nil
 }
 
-func (m *Multigetter) getGroup(ctx context.Context, group Group) error {
+func (m *Multigetter) getGroup(ctx context.Context, group group) error {
 	for _, request := range group.Requests {
 		if err := m.client.Get(ctx, request.Key, request.Object); err != nil {
 			return fmt.Errorf("error getting %v %s: %w", group.GVK, request.Key, err)
@@ -192,16 +222,18 @@ func (m *Multigetter) MultiGet(ctx context.Context, requests ...Request) error {
 
 type Options struct {
 	Client    client.Client
-	Scheme    *runtime.Scheme
 	Threshold *Threshold
+}
+
+func (o *Options) SetDefaults() {
+	if o.Threshold == nil {
+		o.Threshold = DefaultThreshold
+	}
 }
 
 func (o *Options) Validate() error {
 	if o.Client == nil {
 		return fmt.Errorf("client needs to be set")
-	}
-	if o.Scheme == nil {
-		return fmt.Errorf("scheme needs to be set")
 	}
 	if o.Threshold == nil {
 		return fmt.Errorf("threshold needs to be set")
@@ -213,12 +245,12 @@ func (o *Options) Validate() error {
 }
 
 func New(opts Options) (*Multigetter, error) {
+	opts.SetDefaults()
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 	return &Multigetter{
 		client:    opts.Client,
-		scheme:    opts.Scheme,
 		threshold: opts.Threshold.DeepCopy(),
 	}, nil
 }

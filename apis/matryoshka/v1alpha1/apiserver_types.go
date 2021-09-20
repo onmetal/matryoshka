@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -33,6 +34,9 @@ type APIServerSpec struct {
 	// Version is the api server version to use.
 	//+kubebuilder:validation:Pattern=^[0-9]+\.[0-9]+\.[0-9]+$
 	Version string `json:"version"`
+	// Resources specifies the resources the api server container requires.
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 	// ETCD specifies etcd configuration for the api server to use.
 	ETCD APIServerETCD `json:"etcd"`
 	// Authentication specifies how users can authenticate to the api server.

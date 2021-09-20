@@ -17,14 +17,15 @@ package kubeconfig
 import (
 	"context"
 	"fmt"
+
+	"github.com/onmetal/controller-utils/clientutils"
+	"github.com/onmetal/controller-utils/memorystore"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/memorystore"
 	"github.com/onmetal/matryoshka/pkg/utils"
-	"github.com/onmetal/matryoshka/pkg/utils/multigetter"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapiv1 "k8s.io/client-go/tools/clientcmd/api/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -33,117 +34,83 @@ type Resolver struct {
 	client client.Client
 }
 
-func (r *Resolver) createKubeconfigReferences(ctx context.Context, s *memorystore.Store, kubeconfig *matryoshkav1alpha1.Kubeconfig) error {
+func (r *Resolver) getRequests(kubeconfig *matryoshkav1alpha1.Kubeconfig) *clientutils.GetRequestSet {
+	s := clientutils.NewGetRequestSet()
 	for _, authInfo := range kubeconfig.Spec.AuthInfos {
-		if err := r.createAuthInfoReferences(ctx, s, kubeconfig.Namespace, &authInfo.AuthInfo); err != nil {
-			return err
-		}
+		r.addKubeconfigAuthInfoGetRequests(s, kubeconfig.Namespace, &authInfo.AuthInfo)
 	}
 	for _, cluster := range kubeconfig.Spec.Clusters {
-		if err := r.createClusterReferences(ctx, s, kubeconfig.Namespace, &cluster.Cluster); err != nil {
-			return err
-		}
+		r.addKubeconfigClusterReferencesGetRequests(s, kubeconfig.Namespace, &cluster.Cluster)
 	}
-	return nil
+	return s
 }
 
-func (r *Resolver) createClusterReferences(ctx context.Context, s *memorystore.Store, namespace string, cluster *matryoshkav1alpha1.Cluster) error {
+func (r *Resolver) addKubeconfigClusterReferencesGetRequests(s *clientutils.GetRequestSet, namespace string, cluster *matryoshkav1alpha1.KubeconfigCluster) {
 	if certificateAuthority := cluster.CertificateAuthority; certificateAuthority != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      certificateAuthority.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: certificateAuthority.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
-
-	return nil
 }
 
-func (r *Resolver) createAuthInfoReferences(ctx context.Context, s *memorystore.Store, namespace string, authInfo *matryoshkav1alpha1.AuthInfo) error {
+func (r *Resolver) addKubeconfigAuthInfoGetRequests(s *clientutils.GetRequestSet, namespace string, authInfo *matryoshkav1alpha1.KubeconfigAuthInfo) {
 	if clientCertificate := authInfo.ClientCertificate; clientCertificate != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      clientCertificate.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: clientCertificate.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
 
 	if clientKey := authInfo.ClientKey; clientKey != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      clientKey.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: clientKey.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
 
 	if token := authInfo.Token; token != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      token.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: token.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
 
 	if password := authInfo.Password; password != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      password.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: password.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
-
-	return nil
 }
 
-func (r *Resolver) ObjectReferences(ctx context.Context, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*memorystore.Store, error) {
-	s := memorystore.New(r.scheme)
-
-	if err := r.createKubeconfigReferences(ctx, s, kubeconfig); err != nil {
-		return nil, err
-	}
-
-	return s, nil
-}
-
-func (r *Resolver) resolveKubeconfigObjects(ctx context.Context, s *memorystore.Store) error {
-	mg, err := multigetter.New(multigetter.Options{Client: r.client})
-	if err != nil {
-		return err
-	}
-
-	if err := mg.MultiGet(ctx, multigetter.RequestsFromObjects(s.Objects())...); err != nil {
-		return err
-	}
-
-	return nil
+func (r *Resolver) ObjectReferences(kubeconfig *matryoshkav1alpha1.Kubeconfig) (clientutils.ObjectRefSet, error) {
+	reqs := r.getRequests(kubeconfig)
+	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, reqs)
 }
 
 func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
-	s, err := r.ObjectReferences(ctx, kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("error determining objects referenced by kubeconfig: %w", err)
+	log := ctrl.LoggerFrom(ctx)
+
+	reqs := r.getRequests(kubeconfig).List()
+	log.V(1).Info("Retrieving source objects.")
+	if err := clientutils.GetMultiple(ctx, r.client, reqs); err != nil {
+		return nil, fmt.Errorf("error retrieving source objects: %w", err)
 	}
 
-	if err := r.resolveKubeconfigObjects(ctx, s); err != nil {
-		return nil, fmt.Errorf("error resolving objects referenced by kubeconfig: %w", err)
+	log.V(2).Info("Building cache from retrieved source objects.")
+	s := memorystore.New(r.scheme)
+	for _, obj := range clientutils.ObjectsFromGetRequests(reqs) {
+		if err := s.Create(ctx, obj); err != nil {
+			return nil, fmt.Errorf("error storing object %s in cache: %w",
+				client.ObjectKeyFromObject(obj),
+				err,
+			)
+		}
 	}
 
-	cfg, err := r.resolveKubeconfig(ctx, s, kubeconfig)
+	log.V(1).Info("Building kubeconfig.")
+	cfg, err := r.config(ctx, s, kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error resolving kubeconfig to config: %w", err)
 	}
@@ -151,7 +118,7 @@ func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.K
 	return cfg, nil
 }
 
-func (r *Resolver) resolveKubeconfig(ctx context.Context, s *memorystore.Store, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
+func (r *Resolver) config(ctx context.Context, s *memorystore.Store, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
 	authInfos := make([]clientcmdapiv1.NamedAuthInfo, 0, len(kubeconfig.Spec.AuthInfos))
 	for _, authInfo := range kubeconfig.Spec.AuthInfos {
 		resolved, err := r.resolveAuthInfo(ctx, s, kubeconfig.Namespace, &authInfo.AuthInfo)
@@ -196,12 +163,12 @@ func (r *Resolver) resolveAuthInfo(
 	ctx context.Context,
 	s *memorystore.Store,
 	namespace string,
-	authInfo *matryoshkav1alpha1.AuthInfo,
+	authInfo *matryoshkav1alpha1.KubeconfigAuthInfo,
 ) (*clientcmdapiv1.AuthInfo, error) {
 	var clientCertificateData []byte
 	if clientCertificate := authInfo.ClientCertificate; clientCertificate != nil {
 		var err error
-		clientCertificateData, err = utils.GetSecretSelector(ctx, s, namespace, *clientCertificate.Secret, matryoshkav1alpha1.DefaultAuthInfoClientCertificateKey)
+		clientCertificateData, err = utils.GetSecretSelector(ctx, s, namespace, *clientCertificate.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientCertificateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -210,7 +177,7 @@ func (r *Resolver) resolveAuthInfo(
 	var clientKeyData []byte
 	if clientKey := authInfo.ClientKey; clientKey != nil {
 		var err error
-		clientKeyData, err = utils.GetSecretSelector(ctx, s, namespace, *clientKey.Secret, matryoshkav1alpha1.DefaultAuthInfoClientKeyKey)
+		clientKeyData, err = utils.GetSecretSelector(ctx, s, namespace, *clientKey.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientKeyKey)
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +189,7 @@ func (r *Resolver) resolveAuthInfo(
 			tokenData []byte
 			err       error
 		)
-		tokenData, err = utils.GetSecretSelector(ctx, s, namespace, *tok.Secret, matryoshkav1alpha1.DefaultAuthInfoTokenKey)
+		tokenData, err = utils.GetSecretSelector(ctx, s, namespace, *tok.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoTokenKey)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +203,7 @@ func (r *Resolver) resolveAuthInfo(
 			passwordData []byte
 			err          error
 		)
-		passwordData, err = utils.GetSecretSelector(ctx, s, namespace, *pwd.Secret, matryoshkav1alpha1.DefaultAuthInfoPasswordKey)
+		passwordData, err = utils.GetSecretSelector(ctx, s, namespace, *pwd.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoPasswordKey)
 		if err != nil {
 			return nil, err
 		}
@@ -255,11 +222,11 @@ func (r *Resolver) resolveAuthInfo(
 	}, nil
 }
 
-func (r *Resolver) resolveCluster(ctx context.Context, s *memorystore.Store, namespace string, cluster *matryoshkav1alpha1.Cluster) (*clientcmdapiv1.Cluster, error) {
+func (r *Resolver) resolveCluster(ctx context.Context, s *memorystore.Store, namespace string, cluster *matryoshkav1alpha1.KubeconfigCluster) (*clientcmdapiv1.Cluster, error) {
 	var certificateAuthorityData []byte
 	if certificateAuthority := cluster.CertificateAuthority; certificateAuthority != nil {
 		var err error
-		certificateAuthorityData, err = utils.GetSecretSelector(ctx, s, namespace, *certificateAuthority.Secret, matryoshkav1alpha1.DefaultClusterCertificateAuthorityKey)
+		certificateAuthorityData, err = utils.GetSecretSelector(ctx, s, namespace, *certificateAuthority.Secret, matryoshkav1alpha1.DefaultKubeconfigClusterCertificateAuthorityKey)
 		if err != nil {
 			return nil, err
 		}

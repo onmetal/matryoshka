@@ -17,9 +17,13 @@ package matryoshka
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/onmetal/controller-utils/clientutils"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/apiserver"
-	"github.com/onmetal/matryoshka/pkg/utils"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/apiserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,23 +31,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 var _ = Describe("APIServerController", func() {
 	const (
-		fieldOwner               = "test"
-		apiServerSampleFilename  = "../../config/samples/matryoshka_v1alpha1_apiserver.yaml"
-		apiServerName            = "apiserver-sample"
-		tokenSecretName          = "apiserver-token-sample"
-		serviceAccountSecretName = "apiserver-service-account-sample"
+		fieldOwner              = "test"
+		apiServerSampleFilename = "../../config/samples/matryoshka_v1alpha1_apiserver.yaml"
+		tokenSecretName         = "apiserver-token-sample"
+		certAndKeySecretName    = "apiserver-cert-and-key"
 	)
 	ctx := context.Background()
 	ns := SetupTest(ctx)
 
 	It("should create a healthy api server", func() {
 		By("applying the sample file")
-		_, err := utils.ApplyFile(ctx, k8sClient, apiServerSampleFilename, ns.Name, fieldOwner)
+		_, err := clientutils.PatchMultipleFromFile(ctx, client.NewNamespacedClient(k8sClient, ns.Name), apiServerSampleFilename, clientutils.ApplyAll, client.FieldOwner(fieldOwner))
 		Expect(err).NotTo(HaveOccurred())
 
 		By("waiting for a deployment to be created")
@@ -63,7 +65,16 @@ var _ = Describe("APIServerController", func() {
 				Name: apiserver.ServiceAccountVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName:  serviceAccountSecretName,
+						SecretName:  certAndKeySecretName,
+						DefaultMode: pointer.Int32Ptr(420),
+					},
+				},
+			},
+			corev1.Volume{
+				Name: apiserver.TLSVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  certAndKeySecretName,
 						DefaultMode: pointer.Int32Ptr(420),
 					},
 				},
@@ -99,12 +110,28 @@ var _ = Describe("APIServerController", func() {
 			"--service-account-issuer=https://apiserver-sample:443",
 			fmt.Sprintf("--service-account-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
 			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
+			fmt.Sprintf("--tls-cert-file=%s/tls.crt", apiserver.TLSVolumePath),
+			fmt.Sprintf("--tls-private-key-file=%s/tls.key", apiserver.TLSVolumePath),
 			fmt.Sprintf("--token-auth-file=%s/%s", apiserver.TokenVolumePath, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey),
+		}))
+		Expect(container.Resources).To(Equal(corev1.ResourceRequirements{
+			Requests: map[corev1.ResourceName]resource.Quantity{
+				"cpu":    resource.MustParse("200m"),
+				"memory": resource.MustParse("300Mi"),
+			},
+			Limits: map[corev1.ResourceName]resource.Quantity{
+				"cpu":    resource.MustParse("1200m"),
+				"memory": resource.MustParse("2000Mi"),
+			},
 		}))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
 				Name:      apiserver.ServiceAccountVolumeName,
 				MountPath: apiserver.ServiceAccountVolumePath,
+			},
+			corev1.VolumeMount{
+				Name:      apiserver.TLSVolumeName,
+				MountPath: apiserver.TLSVolumePath,
 			},
 			corev1.VolumeMount{
 				Name:      apiserver.TokenVolumeName,
@@ -116,7 +143,7 @@ var _ = Describe("APIServerController", func() {
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/readyz",
 					Port:   intstr.FromInt(443),
-					Scheme: corev1.URISchemeHTTP,
+					Scheme: corev1.URISchemeHTTPS,
 					HTTPHeaders: []corev1.HTTPHeader{
 						{
 							Name:  "Authorization",
@@ -136,7 +163,7 @@ var _ = Describe("APIServerController", func() {
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/livez",
 					Port:   intstr.FromInt(443),
-					Scheme: corev1.URISchemeHTTP,
+					Scheme: corev1.URISchemeHTTPS,
 					HTTPHeaders: []corev1.HTTPHeader{
 						{
 							Name:  "Authorization",

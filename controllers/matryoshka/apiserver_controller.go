@@ -19,13 +19,14 @@ package matryoshka
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-logr/logr"
+	"github.com/onmetal/controller-utils/clientutils"
+	condition "github.com/onmetal/controller-utils/conditionutils"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/apiserver"
-	"github.com/onmetal/matryoshka/pkg/utils/condition"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/apiserver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -124,7 +125,7 @@ func (r *APIServerReconciler) mirrorDeploymentStatus(server *matryoshkav1alpha1.
 
 func (r *APIServerReconciler) reconcile(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.APIServer) (ctrl.Result, error) {
 	log.V(1).Info("Building api server deployment")
-	deploy, err := r.resolver.Deployment(ctx, server)
+	deploy, err := r.resolver.Resolve(ctx, server)
 	if err != nil {
 		condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.APIServerDeploymentFailure),
 			condition.UpdateStatus(corev1.ConditionTrue),
@@ -185,14 +186,14 @@ func (r *APIServerReconciler) enqueueReferencingAPIServers(obj client.Object) []
 	var requests []reconcile.Request
 	for _, apiServer := range list.Items {
 		log := log.WithValues("apiserver", client.ObjectKeyFromObject(&apiServer))
-		refs, err := r.resolver.ObjectReferences(ctx, &apiServer)
+		refs, err := r.resolver.ObjectReferences(&apiServer)
 		if err != nil {
 			log.Error(err, "Error determining references")
 			continue
 		}
 
-		if err := refs.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object)); err != nil {
-			if !apierrors.IsNotFound(err) {
+		if ok, err := clientutils.ObjectRefSetReferencesObject(r.Scheme, refs, obj); err != nil || !ok {
+			if err != nil {
 				log.Error(err, "Error determining object is referenced")
 			}
 			continue

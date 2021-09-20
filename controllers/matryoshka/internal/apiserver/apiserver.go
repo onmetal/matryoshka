@@ -20,11 +20,13 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/memorystore"
-	"github.com/onmetal/matryoshka/pkg/utils"
-	"github.com/onmetal/matryoshka/pkg/utils/multigetter"
 	"io"
+	"strings"
+
+	"github.com/onmetal/controller-utils/clientutils"
+	"github.com/onmetal/controller-utils/memorystore"
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	"github.com/onmetal/matryoshka/pkg/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +35,6 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 const (
@@ -66,94 +67,58 @@ type Resolver struct {
 	client client.Client
 }
 
-func (r *Resolver) ObjectReferences(ctx context.Context, server *matryoshkav1alpha1.APIServer) (*memorystore.Store, error) {
-	s := memorystore.New(r.client.Scheme())
-
-	if err := r.createAPIServerObjectReferences(ctx, s, server); err != nil {
-		return nil, err
-	}
-
-	return s, nil
-}
-
-func (r *Resolver) createAPIServerObjectReferences(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.APIServer) error {
-	if err := r.createAPIServerETCDObjectReferences(ctx, s, server.Namespace, &server.Spec.ETCD); err != nil {
-		return err
-	}
-	if err := r.createAPIServerServiceAccountObjectReferences(ctx, s, server.Namespace, &server.Spec.ServiceAccount); err != nil {
-		return err
-	}
-	if err := r.createAPIServerAuthenticationObjectReferences(ctx, s, server.Namespace, &server.Spec.Authentication); err != nil {
-		return err
-	}
+func (r *Resolver) getRequests(server *matryoshkav1alpha1.APIServer) *clientutils.GetRequestSet {
+	s := clientutils.NewGetRequestSet()
+	r.addAPIServerETCDGetRequests(s, server.Namespace, &server.Spec.ETCD)
+	r.addAPIServerServiceAccountGetRequests(s, server.Namespace, &server.Spec.ServiceAccount)
+	r.addAPIServerAuthenticationGetRequests(s, server.Namespace, &server.Spec.Authentication)
 	if tls := server.Spec.TLS; tls != nil {
-		if err := r.createAPIServerTLSObjectReferences(ctx, s, server.Namespace, tls); err != nil {
-			return err
-		}
+		r.addAPIServerTLSGetRequests(s, server.Namespace, tls)
 	}
-	return nil
+	return s
 }
 
-func (r *Resolver) createAPIServerETCDObjectReferences(ctx context.Context, s *memorystore.Store, namespace string, etcd *matryoshkav1alpha1.APIServerETCD) error {
-	if etcd.Key != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      etcd.Key.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+func (r *Resolver) addAPIServerETCDGetRequests(s *clientutils.GetRequestSet, namespace string, etcd *matryoshkav1alpha1.APIServerETCD) {
+	if key := etcd.Key; key != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: key.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
-	if etcd.CertificateAuthority != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      etcd.CertificateAuthority.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+	if ca := etcd.CertificateAuthority; ca != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: ca.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
-	return nil
 }
 
-func (r *Resolver) createAPIServerServiceAccountObjectReferences(ctx context.Context, s *memorystore.Store, namespace string, serviceAccount *matryoshkav1alpha1.APIServerServiceAccount) error {
-	if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      serviceAccount.Secret.Name,
-		},
-	})); err != nil {
-		return err
-	}
-	return nil
+func (r *Resolver) addAPIServerServiceAccountGetRequests(s *clientutils.GetRequestSet, namespace string, serviceAccount *matryoshkav1alpha1.APIServerServiceAccount) {
+	s.Insert(clientutils.GetRequest{
+		Key:    client.ObjectKey{Namespace: namespace, Name: serviceAccount.Secret.Name},
+		Object: &corev1.Secret{},
+	})
 }
 
-func (r *Resolver) createAPIServerAuthenticationObjectReferences(ctx context.Context, s *memorystore.Store, namespace string, auth *matryoshkav1alpha1.APIServerAuthentication) error {
+func (r *Resolver) addAPIServerAuthenticationGetRequests(s *clientutils.GetRequestSet, namespace string, auth *matryoshkav1alpha1.APIServerAuthentication) {
 	if token := auth.Token; token != nil {
-		if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      token.Secret.Name,
-			},
-		})); err != nil {
-			return err
-		}
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: namespace, Name: token.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
-	return nil
 }
 
-func (r *Resolver) createAPIServerTLSObjectReferences(ctx context.Context, s *memorystore.Store, namespace string, tls *matryoshkav1alpha1.APIServerTLS) error {
-	if err := utils.IgnoreAlreadyExists(s.Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      tls.Secret.Name,
-		},
-	})); err != nil {
-		return err
-	}
-	return nil
+func (r *Resolver) addAPIServerTLSGetRequests(s *clientutils.GetRequestSet, namespace string, tls *matryoshkav1alpha1.APIServerTLS) {
+	s.Insert(clientutils.GetRequest{
+		Key:    client.ObjectKey{Namespace: namespace, Name: tls.Secret.Name},
+		Object: &corev1.Secret{},
+	})
+}
+
+func (r *Resolver) ObjectReferences(server *matryoshkav1alpha1.APIServer) (clientutils.ObjectRefSet, error) {
+	getRequests := r.getRequests(server)
+	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, getRequests)
 }
 
 func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.APIServer) []corev1.Volume {
@@ -412,9 +377,10 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "kube-apiserver",
-							Image:   fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
-							Command: r.apiServerCommand(server),
+							Name:      "kube-apiserver",
+							Image:     fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
+							Resources: server.Spec.Resources,
+							Command:   r.apiServerCommand(server),
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "https",
@@ -462,26 +428,33 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 	return nil
 }
 
-func (r *Resolver) Deployment(ctx context.Context, server *matryoshkav1alpha1.APIServer) (*appsv1.Deployment, error) {
-	s, err := r.ObjectReferences(ctx, server)
-	if err != nil {
-		return nil, fmt.Errorf("error building api server references: %w", err)
+func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.APIServer) (*appsv1.Deployment, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	reqs := r.getRequests(server).List()
+	log.V(1).Info("Retrieving source objects.")
+	if err := clientutils.GetMultiple(ctx, r.client, reqs); err != nil {
+		return nil, fmt.Errorf("error retrieving source objects: %w", err)
 	}
 
-	mg, err := multigetter.New(multigetter.Options{Client: r.client})
-	if err != nil {
-		return nil, fmt.Errorf("error creating multigetter: %w", err)
+	log.V(2).Info("Building cache from retrieved source objects.")
+	s := memorystore.New(r.scheme)
+	for _, obj := range clientutils.ObjectsFromGetRequests(reqs) {
+		if err := s.Create(ctx, obj); err != nil {
+			return nil, fmt.Errorf("error storing object %s in cache: %w",
+				client.ObjectKeyFromObject(obj),
+				err,
+			)
+		}
 	}
 
-	if err := mg.MultiGet(ctx, multigetter.RequestsFromObjects(s.Objects())...); err != nil {
-		return nil, fmt.Errorf("error retrieving objects referenced by api server: %w", err)
-	}
-
+	log.V(1).Info("Building deployment.")
 	deployment, err := r.deployment(ctx, s, server)
 	if err != nil {
 		return nil, fmt.Errorf("error building api server deployment: %w", err)
 	}
 
+	log.V(2).Info("Updating deployment with checksums.")
 	if err := r.updateDeploymentChecksums(ctx, s, deployment); err != nil {
 		return nil, fmt.Errorf("error updating deployment checksums")
 	}

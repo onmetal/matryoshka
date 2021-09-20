@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package condition_test
+package v1alpha1
 
-import (
-	"testing"
+import corev1 "k8s.io/api/core/v1"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-)
+type ConfigMapSelector struct {
+	corev1.LocalObjectReference `json:",inline"`
+	Key                         string `json:"key,omitempty"`
+}
 
-func TestCondition(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Condition Suite")
+type SecretSelector struct {
+	corev1.LocalObjectReference `json:",inline"`
+	Key                         string `json:"key,omitempty"`
 }

@@ -53,7 +53,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: apiserver-service-account-sample
+  name: apiserver-cert-and-key
 stringData:
   tls.key: |
     -----BEGIN PRIVATE KEY-----
@@ -108,6 +108,37 @@ stringData:
     9Xyr1ecUnW74ZXpbzP+mJX9RLyHHrxEtoll+7VqyUJKjxvAwH8ouV0rq2QZluqxH
     HMGmb3qLdk4kYZmlK0/Edz5u/QF50j8=
     -----END PRIVATE KEY-----
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIFODCCAyACCQDB9lI5BhXs/zANBgkqhkiG9w0BAQsFADBeMQswCQYDVQQGEwJE
+    RTEQMA4GA1UECAwHR2VybWFueTERMA8GA1UEBwwIV2FsbGRvcmYxDzANBgNVBAoM
+    BlNBUCBTRTEZMBcGA1UEAwwQYXBpc2VydmVyLXNhbXBsZTAeFw0yMTA5MjAxMDM4
+    MDZaFw0yMTEwMjAxMDM4MDZaMF4xCzAJBgNVBAYTAkRFMRAwDgYDVQQIDAdHZXJt
+    YW55MREwDwYDVQQHDAhXYWxsZG9yZjEPMA0GA1UECgwGU0FQIFNFMRkwFwYDVQQD
+    DBBhcGlzZXJ2ZXItc2FtcGxlMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC
+    AgEA6W9tMQzo6D6HSexyuMrAB9qZAM7JzeOPLbcdA52FqTiordlj9URFMRAnSOjq
+    jCJMnuRkK/Q4F4XyEGdeWfgPWwQ8ZFpaizi3UiZ2P91JOTNmqbiVSSRWt9FoEOz6
+    rFNXkW+SFhR+f2oocvU5q1RISbKeRJoLYMBfn4xc8uYNydvFD699cZC3uSmHIFSN
+    pdgbOR4XtwT3laewEZjFucExBCcy3HYZ2pRnc6Qb74hJzce49IKX3f18KIAlByoH
+    STJNZY/iUg/VFtqs1FY+v7BpkwYTwwUAJeWWQL6nnHkv7F3ZYrHnLwygg+ir8BO0
+    WR8kSUUigZBHh/2ormgS8H+tAzfa3qCayKjWJU+8w6101SP92LiZlvlYRTjCppD4
+    1Ft4QQS17hsKkKeFJc4vqiQsArBgf04Gc1sEikfXtCV0821OCFWu56+TuzW7KklG
+    HdAK4qD5mxYt1NpEDK+LSPD/u3psYJG103ll1URKcPVDpmPNIysnVjcr4326hpM4
+    bPlLZ3hCK1w4BPoQQ1rrL/m90E8NBP2zeyjnEGMgNP/5UceB7SHm0UytXpfuoHau
+    YbOUR5wXNBkbfs0ChARoQrcLfJKjH25rwhDRzVX203A4CAqC/mLzl7H/8dW/i5rB
+    Bg+aLJjClh/guvicrmZVtxJ8xBSNb9Tm+UD58Li36fTLlvECAwEAATANBgkqhkiG
+    9w0BAQsFAAOCAgEAnUzdXNKFgUki1THp99Zpms5VHqkwKNjbbEpU9Nl7IX4lKHoY
+    y+/drCyI2fAdvAu+TiAeS2rZvF6kuFfi+lzexdJwpLeERJulzktyFLkoVUr72ALZ
+    CbisGTDKLdCk0GD2gkBLirimCvk3cWq/hYO0gQnh/X2YGhz0uCcoctiedqDpKFIU
+    F8EcnOdImJ0AVcHrcKIDQ/JSc3vQv/8Ro1Ak+05rjSQyneHnjCnwLGWMrDl37EOL
+    nAVss5myjSosbuDORb5KWw+Os5ybG+aWEaKsuSU3MYDvuWwJykrW5GbreIPMf2Ip
+    yQZ/zYj0pDJpluC5iktdlNGFFU0sULnPzLEcLx5dHWaVD37ms45T1kHRUWGZsiWF
+    ChdONKFilvFJKYbcSzhfzdV7o4mdCXFFD4z4gqZ3b1A9zrmEAlX5lyelRg0ToToi
+    pWde76ZHsDoo2jS40Q5LL7CB0JW1XJRYy9aLwzWP1CFR4Ie9LFK8UehPsigQmo44
+    H4GTE8ltnI6/L4BKeFRt4H3vpNQzgDMBtj3LvpZy4Y+vErJECp4nwtcqLp1bRhep
+    gMug19ZsI0zmNyB1Ly28NPuVORmDwi+OCa1lRNwyHoyJzJee5NFYycKoinMD+sZC
+    MSX+Ts+TH7v4kSJ/H3h5jlEWG3x8N53vBv1S7M3S711dQwiG1Vs2TiVAn/w=
+    -----END CERTIFICATE-----
 ---
 apiVersion: matryoshka.onmetal.de/v1alpha1
 kind: APIServer
@@ -116,13 +147,23 @@ metadata:
 spec:
   replicas: 1
   version: 1.22.1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 300Mi
+    limits:
+      cpu: 1200m
+      memory: 2000Mi
   etcd:
     servers:
     - http://apiserver-etcd-sample:2379
+  tls:
+    secret:
+      name: apiserver-cert-and-key
   serviceAccount:
     issuer: https://apiserver-sample:443
     secret:
-      name: apiserver-service-account-sample
+      name: apiserver-cert-and-key
   authentication:
     anonymous: {}
     token:

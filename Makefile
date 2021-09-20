@@ -54,7 +54,7 @@ checklicense: ## Check that every file has a license header present.
 	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
 
 lint: ## Lint code
-	golangci-lint run .
+	golangci-lint run ./...
 
 ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
 test: manifests generate fmt checklicense lint ## Run tests.

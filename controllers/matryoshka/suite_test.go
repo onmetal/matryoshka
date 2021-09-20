@@ -18,20 +18,20 @@ package matryoshka
 
 import (
 	"context"
+	"path/filepath"
+	"testing"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"testing"
 
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	//+kubebuilder:scaffold:imports
@@ -47,9 +47,7 @@ var testEnv *envtest.Environment
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -105,6 +103,11 @@ func SetupTest(ctx context.Context) *corev1.Namespace {
 			Scheme: mgr.GetScheme(),
 			Client: mgr.GetClient(),
 		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup api server controller")
+
+		Expect((&KubeconfigReconciler{
+			Scheme: mgr.GetScheme(),
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kubeconfig controller")
 
 		go func() {
 			Expect(mgr.Start(mgrCtx)).To(Succeed())

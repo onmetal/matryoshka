@@ -20,11 +20,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+
 	"github.com/go-logr/logr"
+	"github.com/onmetal/controller-utils/clientutils"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/kubeconfig"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd/api/latest"
@@ -139,14 +140,14 @@ func (r *KubeconfigReconciler) enqueueReferencingKubeconfigs(obj client.Object) 
 		key := client.ObjectKeyFromObject(&kc)
 		log := log.WithValues("kubeconfig", key)
 
-		refs, err := r.resolver.ObjectReferences(ctx, &kc)
+		refs, err := r.resolver.ObjectReferences(&kc)
 		if err != nil {
 			log.Error(err, "Error determining references")
 			continue
 		}
 
-		if err := refs.Get(ctx, client.ObjectKeyFromObject(obj), obj.DeepCopyObject().(client.Object)); err != nil {
-			if !apierrors.IsNotFound(err) {
+		if ok, err := clientutils.ObjectRefSetReferencesObject(r.Scheme, refs, obj); err != nil || !ok {
+			if err != nil {
 				log.Error(err, "Error determining object is referenced")
 			}
 			continue

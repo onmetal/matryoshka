@@ -18,7 +18,7 @@ package v1alpha1
 
 import (
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,86 +30,76 @@ const DefaultKubeconfigKey = "kubeconfig"
 type KubeconfigSpec struct {
 	SecretName string `json:"secretName"`
 
-	Clusters       []NamedCluster  `json:"clusters"`
-	AuthInfos      []NamedAuthInfo `json:"users"`
-	Contexts       []NamedContext  `json:"contexts"`
-	CurrentContext string          `json:"currentContext"`
+	Clusters       []KubeconfigNamedCluster  `json:"clusters"`
+	AuthInfos      []KubeconfigNamedAuthInfo `json:"users"`
+	Contexts       []KubeconfigNamedContext  `json:"contexts"`
+	CurrentContext string                    `json:"currentContext"`
 }
 
-type NamedCluster struct {
-	Name    string  `json:"name"`
-	Cluster Cluster `json:"cluster"`
+type KubeconfigNamedCluster struct {
+	Name    string            `json:"name"`
+	Cluster KubeconfigCluster `json:"cluster"`
 }
 
-type Cluster struct {
-	Server                string                       `json:"server"`
-	TLSServerName         string                       `json:"tlsServerName,omitempty"`
-	InsecureSkipTLSVerify bool                         `json:"insecureSkipTLSVerify,omitempty"`
-	CertificateAuthority  *ClusterCertificateAuthority `json:"certificateAuthority,omitempty"`
-	ProxyURL              string                       `json:"proxyURL,omitempty"`
+type KubeconfigCluster struct {
+	Server                string                                 `json:"server"`
+	TLSServerName         string                                 `json:"tlsServerName,omitempty"`
+	InsecureSkipTLSVerify bool                                   `json:"insecureSkipTLSVerify,omitempty"`
+	CertificateAuthority  *KubeconfigClusterCertificateAuthority `json:"certificateAuthority,omitempty"`
+	ProxyURL              string                                 `json:"proxyURL,omitempty"`
 }
 
-const DefaultClusterCertificateAuthorityKey = "ca.crt"
+const DefaultKubeconfigClusterCertificateAuthorityKey = "ca.crt"
 
-type ClusterCertificateAuthority struct {
+type KubeconfigClusterCertificateAuthority struct {
 	Secret *SecretSelector `json:"secret,omitempty"`
 }
 
-type ConfigMapSelector struct {
-	corev1.LocalObjectReference `json:",inline"`
-	Key                         string `json:"key,omitempty"`
+type KubeconfigNamedAuthInfo struct {
+	Name     string             `json:"name"`
+	AuthInfo KubeconfigAuthInfo `json:"user"`
 }
 
-type SecretSelector struct {
-	corev1.LocalObjectReference `json:",inline"`
-	Key                         string `json:"key,omitempty"`
+type KubeconfigAuthInfo struct {
+	ClientCertificate *KubeconfigAuthInfoClientCertificate `json:"clientCertificate,omitempty"`
+	ClientKey         *KubeconfigAuthInfoClientKey         `json:"clientKey,omitempty"`
+	Token             *KubeconfigAuthInfoToken             `json:"token,omitempty"`
+	Impersonate       string                               `json:"as,omitempty"`
+	ImpersonateGroups []string                             `json:"asGroups,omitempty"`
+	Username          string                               `json:"username,omitempty"`
+	Password          *KubeconfigAuthInfoPassword          `json:"password,omitempty"`
 }
 
-type NamedAuthInfo struct {
-	Name     string   `json:"name"`
-	AuthInfo AuthInfo `json:"user"`
-}
+const DefaultKubeconfigAuthInfoClientKeyKey = "tls.key"
 
-type AuthInfo struct {
-	ClientCertificate *AuthInfoClientCertificate `json:"clientCertificate,omitempty"`
-	ClientKey         *AuthInfoClientKey         `json:"clientKey,omitempty"`
-	Token             *AuthInfoToken             `json:"token,omitempty"`
-	Impersonate       string                     `json:"as,omitempty"`
-	ImpersonateGroups []string                   `json:"asGroups,omitempty"`
-	Username          string                     `json:"username,omitempty"`
-	Password          *AuthInfoPassword          `json:"password,omitempty"`
-}
-
-const DefaultAuthInfoClientKeyKey = "tls.key"
-
-type AuthInfoClientKey struct {
+type KubeconfigAuthInfoClientKey struct {
 	Secret *SecretSelector `json:"secret,omitempty"`
 }
 
-const DefaultAuthInfoClientCertificateKey = "tls.crt"
+const DefaultKubeconfigAuthInfoClientCertificateKey = "tls.crt"
 
-type AuthInfoClientCertificate struct {
+type KubeconfigAuthInfoClientCertificate struct {
 	Secret *SecretSelector `json:"secret,omitempty"`
 }
 
-const DefaultAuthInfoTokenKey = "token"
+const DefaultKubeconfigAuthInfoTokenKey = "token"
 
-type AuthInfoToken struct {
+type KubeconfigAuthInfoToken struct {
 	Secret *SecretSelector `json:"secret,omitempty"`
 }
 
-const DefaultAuthInfoPasswordKey = "password"
+const DefaultKubeconfigAuthInfoPasswordKey = "password"
 
-type AuthInfoPassword struct {
+type KubeconfigAuthInfoPassword struct {
 	Secret *SecretSelector `json:"secret,omitempty"`
 }
 
-type NamedContext struct {
-	Name    string  `json:"name"`
-	Context Context `json:"context"`
+type KubeconfigNamedContext struct {
+	Name    string            `json:"name"`
+	Context KubeconfigContext `json:"context"`
 }
 
-type Context struct {
+type KubeconfigContext struct {
 	Cluster   string `json:"cluster"`
 	AuthInfo  string `json:"user"`
 	Namespace string `json:"namespace,omitempty"`

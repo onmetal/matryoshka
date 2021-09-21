@@ -197,13 +197,6 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.APIServer) [
 	return mounts
 }
 
-func keyOrDefault(key, defaultValue string) string {
-	if key == "" {
-		return defaultValue
-	}
-	return key
-}
-
 func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.APIServer) []string {
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
@@ -234,12 +227,12 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.APIServer) []stri
 	}
 	if token := server.Spec.Authentication.Token; token != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, keyOrDefault(token.Secret.Key, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey)),
+			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(token.Secret.Key, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey)),
 		)
 	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthority; etcdCA != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, keyOrDefault(etcdCA.Secret.Key, matryoshkav1alpha1.DefaultAPIServerETCDCertificateAuthorityKey)),
+			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, utils.StringOrDefault(etcdCA.Secret.Key, matryoshkav1alpha1.DefaultAPIServerETCDCertificateAuthorityKey)),
 		)
 	}
 	if etcdKey := server.Spec.ETCD.Key; etcdKey != nil {
@@ -345,6 +338,7 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 	selector := map[string]string{
 		"matryoshka.onmetal.de/app": fmt.Sprintf("apiserver-%s", server.Name),
 	}
+	labels := utils.MergeStringStringMaps(server.Spec.Labels, selector)
 
 	livenessProbe, err := r.probeForPath(ctx, s, server, "/livez")
 	if err != nil {
@@ -362,8 +356,10 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 			Kind:       "Deployment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: server.Namespace,
-			Name:      server.Name,
+			Namespace:   server.Namespace,
+			Name:        server.Name,
+			Labels:      labels,
+			Annotations: server.Spec.Annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: pointer.Int32Ptr(server.Spec.Replicas),
@@ -372,7 +368,8 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: selector,
+					Labels:      labels,
+					Annotations: server.Spec.Annotations,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{

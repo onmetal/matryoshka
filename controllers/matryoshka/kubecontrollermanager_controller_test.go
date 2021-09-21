@@ -19,10 +19,12 @@ import (
 	"fmt"
 	"time"
 
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubecontrollermanager"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/apiserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,24 +34,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("APIServerController", func() {
+var _ = Describe("KubeControllerManagerController", func() {
 	const (
-		apiServerSampleFilename = "../../config/samples/matryoshka_v1alpha1_apiserver.yaml"
-		tokenSecretName         = "apiserver-token-sample"
-		certAndKeySecretName    = "apiserver-cert-and-key"
+		certAndKeySecretName = "apiserver-cert-and-key"
 	)
 	ctx := context.Background()
 	ns := SetupTest(ctx)
 
-	It("should create a healthy api server", func() {
+	It("should create a healthy kube controller manager", func() {
 		By("applying the sample file")
-		_, err := ApplyFile(ctx, k8sClient, ns.Name, apiServerSampleFilename)
+		_, err := ApplyFile(ctx, k8sClient, ns.Name, APIServerSampleFilename)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = ApplyFile(ctx, k8sClient, ns.Name, KubeControllerManagerSampleFilename)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("waiting for a deployment to be created")
 		deployment := &appsv1.Deployment{}
 		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "apiserver-sample"}, deployment)
+			return k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "kubecontrollermanager-sample"}, deployment)
 		}, 3*time.Second).Should(Succeed())
 
 		By("inspecting the deployment template")
@@ -60,7 +62,16 @@ var _ = Describe("APIServerController", func() {
 		By("inspecting the volumes")
 		Expect(template.Spec.Volumes).To(ConsistOf(
 			corev1.Volume{
-				Name: apiserver.ServiceAccountVolumeName,
+				Name: kubecontrollermanager.KubeconfigVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  "kcm-kubeconfig",
+						DefaultMode: pointer.Int32Ptr(420),
+					},
+				},
+			},
+			corev1.Volume{
+				Name: kubecontrollermanager.ServiceAccountVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
@@ -69,19 +80,19 @@ var _ = Describe("APIServerController", func() {
 				},
 			},
 			corev1.Volume{
-				Name: apiserver.TLSVolumeName,
+				Name: kubecontrollermanager.AuthorizationKubeconfigVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName:  certAndKeySecretName,
+						SecretName:  "kcm-kubeconfig",
 						DefaultMode: pointer.Int32Ptr(420),
 					},
 				},
 			},
 			corev1.Volume{
-				Name: apiserver.TokenVolumeName,
+				Name: kubecontrollermanager.AuthenticationKubeconfigVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName:  tokenSecretName,
+						SecretName:  "kcm-kubeconfig",
 						DefaultMode: pointer.Int32Ptr(420),
 					},
 				},
@@ -92,25 +103,16 @@ var _ = Describe("APIServerController", func() {
 		Expect(template.Spec.Containers).To(HaveLen(1))
 		container := template.Spec.Containers[0]
 		Expect(container.Command).To(Equal([]string{
-			"/usr/local/bin/kube-apiserver",
-			"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
-			"--allow-privileged=false",
-			"--authorization-mode=Node,RBAC",
-			"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
-			"--event-ttl=1h",
-			"--profiling=false",
-			"--secure-port=443",
+			"/usr/local/bin/kube-controller-manager",
 			"--bind-address=0.0.0.0",
-			"--service-cluster-ip-range=100.64.0.0/24",
-			"--etcd-servers=http://apiserver-etcd-sample:2379",
-			"--enable-bootstrap-token-auth=true",
-			"--anonymous-auth=true",
-			"--service-account-issuer=https://apiserver-sample:443",
-			fmt.Sprintf("--service-account-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
-			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
-			fmt.Sprintf("--tls-cert-file=%s/tls.crt", apiserver.TLSVolumePath),
-			fmt.Sprintf("--tls-private-key-file=%s/tls.key", apiserver.TLSVolumePath),
-			fmt.Sprintf("--token-auth-file=%s/%s", apiserver.TokenVolumePath, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey),
+			"--leader-elect=true",
+			"--v=2",
+			"--cluster-name=my-cluster",
+			"--controllers=*,bootstrapsigner,tokencleaner",
+			fmt.Sprintf("--kubeconfig=%s/%s", kubecontrollermanager.KubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerKubeconfigKey),
+			fmt.Sprintf("--service-account-private-key-file=%s/%s", kubecontrollermanager.ServiceAccountVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountPrivateKeyKey),
+			fmt.Sprintf("--authorization-kubeconfig=%s/%s", kubecontrollermanager.AuthorizationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigKey),
+			fmt.Sprintf("--authentication-kubeconfig=%s/%s", kubecontrollermanager.AuthenticationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigKey),
 		}))
 		Expect(container.Resources).To(Equal(corev1.ResourceRequirements{
 			Requests: map[corev1.ResourceName]resource.Quantity{
@@ -124,57 +126,35 @@ var _ = Describe("APIServerController", func() {
 		}))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
-				Name:      apiserver.ServiceAccountVolumeName,
-				MountPath: apiserver.ServiceAccountVolumePath,
+				Name:      kubecontrollermanager.KubeconfigVolumeName,
+				MountPath: kubecontrollermanager.KubeconfigVolumePath,
 			},
 			corev1.VolumeMount{
-				Name:      apiserver.TLSVolumeName,
-				MountPath: apiserver.TLSVolumePath,
+				Name:      kubecontrollermanager.ServiceAccountVolumeName,
+				MountPath: kubecontrollermanager.ServiceAccountVolumePath,
 			},
 			corev1.VolumeMount{
-				Name:      apiserver.TokenVolumeName,
-				MountPath: apiserver.TokenVolumePath,
+				Name:      kubecontrollermanager.AuthorizationKubeconfigVolumeName,
+				MountPath: kubecontrollermanager.AuthorizationKubeconfigVolumePath,
+			},
+			corev1.VolumeMount{
+				Name:      kubecontrollermanager.AuthenticationKubeconfigVolumeName,
+				MountPath: kubecontrollermanager.AuthenticationKubeconfigVolumePath,
 			},
 		))
-		Expect(container.ReadinessProbe).To(Equal(&corev1.Probe{
-			Handler: corev1.Handler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path:   "/readyz",
-					Port:   intstr.FromInt(443),
-					Scheme: corev1.URISchemeHTTPS,
-					HTTPHeaders: []corev1.HTTPHeader{
-						{
-							Name:  "Authorization",
-							Value: "Bearer some-token",
-						},
-					},
-				},
-			},
-			InitialDelaySeconds: 15,
-			TimeoutSeconds:      15,
-			PeriodSeconds:       30,
-			SuccessThreshold:    1,
-			FailureThreshold:    3,
-		}))
 		Expect(container.LivenessProbe).To(Equal(&corev1.Probe{
 			Handler: corev1.Handler{
 				HTTPGet: &corev1.HTTPGetAction{
-					Path:   "/livez",
-					Port:   intstr.FromInt(443),
+					Path:   "/healthz",
+					Port:   intstr.FromInt(10257),
 					Scheme: corev1.URISchemeHTTPS,
-					HTTPHeaders: []corev1.HTTPHeader{
-						{
-							Name:  "Authorization",
-							Value: "Bearer some-token",
-						},
-					},
 				},
 			},
 			InitialDelaySeconds: 15,
 			TimeoutSeconds:      15,
-			PeriodSeconds:       30,
+			PeriodSeconds:       10,
 			SuccessThreshold:    1,
-			FailureThreshold:    3,
+			FailureThreshold:    2,
 		}))
 	})
 })

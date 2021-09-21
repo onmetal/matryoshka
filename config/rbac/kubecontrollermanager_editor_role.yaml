@@ -1,0 +1,24 @@
+# permissions for end users to edit kubecontrollermanagers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubecontrollermanager-editor-role
+rules:
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubecontrollermanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubecontrollermanagers/status
+  verbs:
+  - get

@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: apiservers.matryoshka.onmetal.de
+  name: kubecontrollermanagers.matryoshka.onmetal.de
 spec:
   group: matryoshka.onmetal.de
   names:
-    kind: APIServer
-    listKind: APIServerList
-    plural: apiservers
-    singular: apiserver
+    kind: KubeControllerManager
+    listKind: KubeControllerManagerList
+    plural: kubecontrollermanagers
+    singular: kubecontrollermanager
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -35,7 +35,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: APIServer is the Schema for the apiservers API
+        description: KubeControllerManager is the Schema for the kubecontrollermanagers
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -50,7 +51,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: APIServerSpec defines the desired state of APIServer
+            description: KubeControllerManagerSpec defines the desired state of KubeControllerManager
             properties:
               annotations:
                 additionalProperties:
@@ -58,29 +59,21 @@ spec:
                 description: Annotations sets annotations on resources managed by
                   this.
                 type: object
-              authentication:
-                description: Authentication specifies how users can authenticate to
-                  the api server.
+              cluster:
+                description: Cluster specifies cluster specific settings.
                 properties:
-                  anonymous:
-                    description: Anonymous specifies whether anonymous authentication
-                      is enabled.
-                    type: object
-                  bootstrapToken:
-                    description: BootstrapToken specifies whether bootstrap token
-                      authentication is enabled.
-                    type: object
-                  token:
-                    description: Token specifies whether token authentication is enabled
-                      and where these tokens are located at.
+                  name:
+                    description: Name is the cluster name for the kube controller
+                      manager to use.
+                    type: string
+                  signing:
+                    description: Signing specifies signing settings for the cluster.
                     properties:
                       secret:
-                        description: Secret specifies a secret containing the tokens.
-                          If key is left blank, DefaultAPIServerTokenAuthenticationKey
-                          is used as default key.
+                        description: Secret specifies the secret the kube controller
+                          manager uses for signing. It is expected that the secret
+                          contains 'ca.crt' and 'tls.key'.
                         properties:
-                          key:
-                            type: string
                           name:
                             description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               TODO: Add other useful fields. apiVersion, kind, uid?'
@@ -89,18 +82,41 @@ spec:
                     required:
                     - secret
                     type: object
+                required:
+                - name
                 type: object
-              etcd:
-                description: ETCD specifies etcd configuration for the api server
-                  to use.
+              controllers:
+                description: Controllers are controller settings for the kube controller
+                  manager.
                 properties:
-                  certificateAuthority:
-                    description: CertificateAuthority is an optional specification
-                      of the certificate authority to use when connecting to the etcd.
+                  credentials:
+                    default: ServiceAccount
+                    description: Credentials specifies how the controllers managed
+                      by kube controller manager should handle their credentials towards
+                      the Kubernetes API.
+                    enum:
+                    - Global
+                    - ServiceAccount
+                    type: string
+                  list:
+                    default:
+                    - '*'
+                    description: List is the list of all enabled controllers.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              kubernetesAPI:
+                description: KubernetesAPI are settings on how to interface with the
+                  Kubernetes API.
+                properties:
+                  authenticationKubeconfig:
+                    description: AuthenticationKubeconfig specifies the authentication
+                      kubeconfig for the kube controller manager to use.
                     properties:
                       secret:
-                        description: Secret is a SecretSelector specifying where to
-                          retrieve the ca certificate. If key is left blank, DefaultAPIServerETCDCertificateAuthorityKey
+                        description: Secret references the secret for the kube controller
+                          manager to lookup. If key is unset, DefaultKubeControllerManagerAuthenticationKubeconfigKey
                           is used.
                         properties:
                           key:
@@ -113,14 +129,17 @@ spec:
                     required:
                     - secret
                     type: object
-                  key:
-                    description: Key is an optional specification of the key to use
-                      when connecting to the etcd.
+                  authorizationKubeconfig:
+                    description: AuthorizationKubeconfig specifies the authorization
+                      kubeconfig for the kube controller manager to use.
                     properties:
                       secret:
-                        description: Secret references a secret containing the etcd
-                          key under 'tls.key'.
+                        description: Secret references the secret for the kube controller
+                          manager to lookup. If key is unset, DefaultKubeControllerManagerAuthorizationKubeconfigKey
+                          is used.
                         properties:
+                          key:
+                            type: string
                           name:
                             description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               TODO: Add other useful fields. apiVersion, kind, uid?'
@@ -129,15 +148,27 @@ spec:
                     required:
                     - secret
                     type: object
-                  servers:
-                    description: Servers is the list of etcd servers for the api server
-                      to connect to.
-                    items:
-                      type: string
-                    minItems: 1
-                    type: array
+                  kubeconfig:
+                    description: Kubeconfig specifies the kubeconfig for the kube
+                      controller manager to use.
+                    properties:
+                      secret:
+                        description: Secret references the secret for the kube controller
+                          manager to lookup. If key is unset, DefaultKubeControllerManagerKubeconfigKey
+                          is used.
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                    required:
+                    - secret
+                    type: object
                 required:
-                - servers
+                - kubeconfig
                 type: object
               labels:
                 additionalProperties:
@@ -145,14 +176,14 @@ spec:
                 description: Labels sets labels on resources managed by this.
                 type: object
               replicas:
-                description: Replicas specifies the desired amount of replicas for
-                  the api server deployment.
+                description: Replicas specifies the number of kube controller manager
+                  replicas to create.
                 format: int32
                 minimum: 0
                 type: integer
               resources:
-                description: Resources specifies the resources the api server container
-                  requires.
+                description: Resources specifies the resources the kube controller
+                  manager container requires.
                 properties:
                   limits:
                     additionalProperties:
@@ -178,53 +209,65 @@ spec:
                     type: object
                 type: object
               serviceAccount:
-                description: ServiceAccount are service account settings for the api
-                  server.
+                description: ServiceAccount specifies how the kube controller manager
+                  should handle service accounts.
                 properties:
-                  issuer:
-                    description: Issuer is the service account issuer.
-                    type: string
-                  secret:
-                    description: Secret references a secret containing a key 'tls.key'
-                      that contains the key to sign and verify service accounts with.
+                  privateKey:
+                    description: Private key specifies the private key for the kube
+                      controller manager to use.
                     properties:
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
+                      secret:
+                        description: Secret specifies the secret to look up for the
+                          private key of the kube controller manager. If key is left
+                          empty, DefaultKubeControllerManagerServiceAccountPrivateKeyKey
+                          will be used as default.
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                    required:
+                    - secret
                     type: object
-                required:
-                - issuer
-                - secret
-                type: object
-              tls:
-                description: TLS optionally defines how to secure the api server.
-                properties:
-                  secret:
-                    description: Secret references a secret containing 'tls.crt' and
-                      'tls.key' to use for TLS-securing the API server.
+                  rootCertificateAuthority:
+                    description: RootCertificateAuthority specifies an optional root
+                      certificate authority to distribute as part of each service
+                      account.
                     properties:
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
+                      secret:
+                        description: Secret specifies the secret to look up for the
+                          root ca of service accounts of the kube controller manager.
+                          If key is left empty, DefaultKubeControllerManagerServiceAccountRootCertificateAuthorityKey
+                          will be used as default.
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                              TODO: Add other useful fields. apiVersion, kind, uid?'
+                            type: string
+                        type: object
+                    required:
+                    - secret
                     type: object
-                required:
-                - secret
                 type: object
               version:
-                description: Version is the api server version to use.
+                description: Version is the kube controller manager version to use.
                 pattern: ^[0-9]+\.[0-9]+\.[0-9]+$
                 type: string
             required:
-            - authentication
-            - etcd
+            - cluster
+            - kubernetesAPI
             - replicas
             - serviceAccount
             - version
             type: object
           status:
-            description: APIServerStatus defines the observed state of APIServer
+            description: KubeControllerManagerStatus defines the observed state of
+              KubeControllerManager
             properties:
               availableReplicas:
                 format: int32

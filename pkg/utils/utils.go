@@ -74,6 +74,13 @@ func LookupConfigMapSelector(configMap *corev1.ConfigMap, sel matryoshkav1alpha1
 	return v, nil
 }
 
+func StringOrDefault(s string, defaultValue string) string {
+	if s == "" {
+		return defaultValue
+	}
+	return s
+}
+
 func mkChecksumKey(kind string, obj client.Object) string {
 	return fmt.Sprintf("checksum.%s/%s", kind, obj.GetName())
 }
@@ -113,4 +120,17 @@ func ComputeMountableChecksum(secrets []corev1.Secret, configMaps []corev1.Confi
 		checksums[mkChecksumKey("config", &config)] = configMapDataChecksum(config.Data)
 	}
 	return checksums, nil
+}
+
+func MergeStringStringMaps(ms ...map[string]string) map[string]string {
+	var res map[string]string
+	for _, m := range ms {
+		if m != nil {
+			res = make(map[string]string)
+		}
+		for k, v := range m {
+			res[k] = v
+		}
+	}
+	return res
 }

@@ -37,6 +37,10 @@ type APIServerSpec struct {
 	// Resources specifies the resources the api server container requires.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// Labels sets labels on resources managed by this.
+	Labels map[string]string `json:"labels,omitempty"`
+	// Annotations sets annotations on resources managed by this.
+	Annotations map[string]string `json:"annotations,omitempty"`
 	// ETCD specifies etcd configuration for the api server to use.
 	ETCD APIServerETCD `json:"etcd"`
 	// Authentication specifies how users can authenticate to the api server.

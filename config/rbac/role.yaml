@@ -70,6 +70,32 @@ rules:
   - patch
   - update
 - apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubecontrollermanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubecontrollermanagers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubecontrollermanagers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - v1
   resources:
   - configmaps

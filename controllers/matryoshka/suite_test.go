@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/onmetal/controller-utils/clientutils"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -70,6 +73,9 @@ var _ = BeforeSuite(func() {
 	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -109,6 +115,11 @@ func SetupTest(ctx context.Context) *corev1.Namespace {
 			Client: mgr.GetClient(),
 		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kubeconfig controller")
 
+		Expect((&KubeControllerManagerReconciler{
+			Scheme: mgr.GetScheme(),
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kube controller manager controller")
+
 		go func() {
 			Expect(mgr.Start(mgrCtx)).To(Succeed())
 		}()
@@ -121,3 +132,13 @@ func SetupTest(ctx context.Context) *corev1.Namespace {
 
 	return ns
 }
+
+func ApplyFile(ctx context.Context, c client.Client, namespace, filename string) ([]unstructured.Unstructured, error) {
+	return clientutils.PatchMultipleFromFile(ctx, client.NewNamespacedClient(c, namespace), filename, clientutils.ApplyAll, client.FieldOwner("test"))
+}
+
+const (
+	SamplesPath                         = "../../config/samples"
+	APIServerSampleFilename             = SamplesPath + "/matryoshka_v1alpha1_apiserver.yaml"
+	KubeControllerManagerSampleFilename = SamplesPath + "/matryoshka_v1alpha1_kubecontrollermanager.yaml"
+)

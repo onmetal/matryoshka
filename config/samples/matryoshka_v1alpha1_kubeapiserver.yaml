@@ -141,7 +141,7 @@ stringData:
     -----END CERTIFICATE-----
 ---
 apiVersion: matryoshka.onmetal.de/v1alpha1
-kind: APIServer
+kind: KubeAPIServer
 metadata:
   name: apiserver-sample
 spec:

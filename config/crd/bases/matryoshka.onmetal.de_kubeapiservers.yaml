@@ -6,14 +6,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: apiservers.matryoshka.onmetal.de
+  name: kubeapiservers.matryoshka.onmetal.de
 spec:
   group: matryoshka.onmetal.de
   names:
-    kind: APIServer
-    listKind: APIServerList
-    plural: apiservers
-    singular: apiserver
+    kind: KubeAPIServer
+    listKind: KubeAPIServerList
+    plural: kubeapiservers
+    singular: kubeapiserver
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -35,7 +35,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: APIServer is the Schema for the apiservers API
+        description: KubeAPIServer is the Schema for the KubeAPIServers API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -50,7 +50,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: APIServerSpec defines the desired state of APIServer
+            description: KubeAPIServerSpec defines the desired state of KubeAPIServer
             properties:
               annotations:
                 additionalProperties:
@@ -76,7 +76,7 @@ spec:
                     properties:
                       secret:
                         description: Secret specifies a secret containing the tokens.
-                          If key is left blank, DefaultAPIServerTokenAuthenticationKey
+                          If key is left blank, DefaultKubeAPIServerTokenAuthenticationKey
                           is used as default key.
                         properties:
                           key:
@@ -100,7 +100,7 @@ spec:
                     properties:
                       secret:
                         description: Secret is a SecretSelector specifying where to
-                          retrieve the ca certificate. If key is left blank, DefaultAPIServerETCDCertificateAuthorityKey
+                          retrieve the ca certificate. If key is left blank, DefaultKubeAPIServerETCDCertificateAuthorityKey
                           is used.
                         properties:
                           key:
@@ -224,7 +224,7 @@ spec:
             - version
             type: object
           status:
-            description: APIServerStatus defines the observed state of APIServer
+            description: KubeAPIServerStatus defines the observed state of KubeAPIServer
             properties:
               availableReplicas:
                 format: int32

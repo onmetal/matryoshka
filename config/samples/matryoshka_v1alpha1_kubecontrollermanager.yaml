@@ -10,7 +10,7 @@ spec:
       protocol: TCP
       targetPort: 443
   selector:
-    matryoshka.onmetal.de/app: apiserver-apiserver-sample
+    matryoshka.onmetal.de/app: kubeapiserver-kubeapiserver-sample
 ---
 apiVersion: v1
 kind: Secret

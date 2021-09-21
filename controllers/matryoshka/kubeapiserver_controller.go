@@ -24,7 +24,7 @@ import (
 	"github.com/onmetal/controller-utils/clientutils"
 	condition "github.com/onmetal/controller-utils/conditionutils"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/apiserver"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeapiserver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,16 +37,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// APIServerReconciler reconciles a APIServer object
-type APIServerReconciler struct {
+// KubeAPIServerReconciler reconciles a KubeAPIServer object
+type KubeAPIServerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	resolver *apiserver.Resolver
+	resolver *kubeapiserver.Resolver
 }
 
-//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=apiservers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=apiservers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=apiservers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps/v1,resources=deployments,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups=v1,resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=v1,resources=configmaps,verbs=get;list;watch
@@ -54,10 +54,10 @@ type APIServerReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
-func (r *APIServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *KubeAPIServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	apiServer := &matryoshkav1alpha1.APIServer{}
+	apiServer := &matryoshkav1alpha1.KubeAPIServer{}
 	if err := r.Get(ctx, req.NamespacedName, apiServer); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -65,18 +65,18 @@ func (r *APIServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return r.reconcileExists(ctx, log, apiServer)
 }
 
-func (r *APIServerReconciler) reconcileExists(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.APIServer) (ctrl.Result, error) {
+func (r *KubeAPIServerReconciler) reconcileExists(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.KubeAPIServer) (ctrl.Result, error) {
 	if !server.DeletionTimestamp.IsZero() {
 		return r.delete(ctx, log, server)
 	}
 	return r.reconcile(ctx, log, server)
 }
 
-func (r *APIServerReconciler) delete(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.APIServer) (ctrl.Result, error) {
+func (r *KubeAPIServerReconciler) delete(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.KubeAPIServer) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *APIServerReconciler) fetchAndMirrorDeploymentStatus(ctx context.Context, server *matryoshkav1alpha1.APIServer) error {
+func (r *KubeAPIServerReconciler) fetchAndMirrorDeploymentStatus(ctx context.Context, server *matryoshkav1alpha1.KubeAPIServer) error {
 	deploy := &appsv1.Deployment{}
 	if err := r.Client.Get(ctx, client.ObjectKeyFromObject(server), deploy); err != nil {
 		return err
@@ -86,12 +86,12 @@ func (r *APIServerReconciler) fetchAndMirrorDeploymentStatus(ctx context.Context
 	return nil
 }
 
-var deploymentMirrorConditionTypes = map[appsv1.DeploymentConditionType]matryoshkav1alpha1.APIServerConditionType{
-	appsv1.DeploymentAvailable:   matryoshkav1alpha1.APIServerAvailable,
-	appsv1.DeploymentProgressing: matryoshkav1alpha1.APIServerProgressing,
+var deploymentMirrorConditionTypes = map[appsv1.DeploymentConditionType]matryoshkav1alpha1.KubeAPIServerConditionType{
+	appsv1.DeploymentAvailable:   matryoshkav1alpha1.KubeAPIServerAvailable,
+	appsv1.DeploymentProgressing: matryoshkav1alpha1.KubeAPIServerProgressing,
 }
 
-func (r *APIServerReconciler) mirrorDeploymentStatus(server *matryoshkav1alpha1.APIServer, deploy *appsv1.Deployment) {
+func (r *KubeAPIServerReconciler) mirrorDeploymentStatus(server *matryoshkav1alpha1.KubeAPIServer, deploy *appsv1.Deployment) {
 	for deployType, ourType := range deploymentMirrorConditionTypes {
 		var (
 			status  corev1.ConditionStatus
@@ -123,11 +123,11 @@ func (r *APIServerReconciler) mirrorDeploymentStatus(server *matryoshkav1alpha1.
 	server.Status.ObservedGeneration = server.Generation
 }
 
-func (r *APIServerReconciler) reconcile(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.APIServer) (ctrl.Result, error) {
+func (r *KubeAPIServerReconciler) reconcile(ctx context.Context, log logr.Logger, server *matryoshkav1alpha1.KubeAPIServer) (ctrl.Result, error) {
 	log.V(1).Info("Building api server deployment")
 	deploy, err := r.resolver.Resolve(ctx, server)
 	if err != nil {
-		condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.APIServerDeploymentFailure),
+		condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.KubeAPIServerDeploymentFailure),
 			condition.UpdateStatus(corev1.ConditionTrue),
 			condition.UpdateReason("BuildError"),
 			condition.UpdateMessage(fmt.Sprintf("Building the deployment for the api server resulted in an error: %v", err)),
@@ -143,8 +143,8 @@ func (r *APIServerReconciler) reconcile(ctx context.Context, log logr.Logger, se
 	}
 
 	log.V(1).Info("Applying api server deployment")
-	if err := r.Patch(ctx, deploy, client.Apply, client.FieldOwner(matryoshkav1alpha1.APIServerFieldManager)); err != nil {
-		condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.APIServerDeploymentFailure),
+	if err := r.Patch(ctx, deploy, client.Apply, client.FieldOwner(matryoshkav1alpha1.KubeAPIServerFieldManager)); err != nil {
+		condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.KubeAPIServerDeploymentFailure),
 			condition.UpdateStatus(corev1.ConditionUnknown),
 			condition.UpdateReason("ApplyError"),
 			condition.UpdateMessage(fmt.Sprintf("Building the deployment for the api server resulted in an error: %v", err)),
@@ -160,7 +160,7 @@ func (r *APIServerReconciler) reconcile(ctx context.Context, log logr.Logger, se
 	}
 
 	log.V(1).Info("Updating api server status")
-	condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.APIServerDeploymentFailure),
+	condition.MustUpdateSlice(&server.Status.Conditions, string(matryoshkav1alpha1.KubeAPIServerDeploymentFailure),
 		condition.UpdateStatus(corev1.ConditionFalse),
 		condition.UpdateReason("Applied"),
 		condition.UpdateMessage("The api server deployment has been applied successfully."),
@@ -173,11 +173,11 @@ func (r *APIServerReconciler) reconcile(ctx context.Context, log logr.Logger, se
 	return ctrl.Result{}, nil
 }
 
-func (r *APIServerReconciler) enqueueReferencingAPIServers(obj client.Object) []reconcile.Request {
+func (r *KubeAPIServerReconciler) enqueueReferencingAPIServers(obj client.Object) []reconcile.Request {
 	ctx := context.Background()
-	log := ctrl.Log.WithName("apiserver").WithName("enqueueReferencingAPIServers")
+	log := ctrl.Log.WithName("kubeapiserver").WithName("enqueueReferencingAPIServers")
 
-	list := &matryoshkav1alpha1.APIServerList{}
+	list := &matryoshkav1alpha1.KubeAPIServerList{}
 	if err := r.List(ctx, list, client.InNamespace(obj.GetNamespace())); err != nil {
 		log.Error(err, "Could not list api servers in namespace", "namespace", obj.GetNamespace())
 		return nil
@@ -185,7 +185,7 @@ func (r *APIServerReconciler) enqueueReferencingAPIServers(obj client.Object) []
 
 	var requests []reconcile.Request
 	for _, apiServer := range list.Items {
-		log := log.WithValues("apiserver", client.ObjectKeyFromObject(&apiServer))
+		log := log.WithValues("kubeapiserver", client.ObjectKeyFromObject(&apiServer))
 		refs, err := r.resolver.ObjectReferences(&apiServer)
 		if err != nil {
 			log.Error(err, "Error determining references")
@@ -204,9 +204,9 @@ func (r *APIServerReconciler) enqueueReferencingAPIServers(obj client.Object) []
 	return requests
 }
 
-func (r *APIServerReconciler) init() error {
+func (r *KubeAPIServerReconciler) init() error {
 	var err error
-	r.resolver, err = apiserver.NewResolver(apiserver.ResolverOptions{
+	r.resolver, err = kubeapiserver.NewResolver(kubeapiserver.ResolverOptions{
 		Scheme: r.Scheme,
 		Client: r.Client,
 	})
@@ -218,13 +218,13 @@ func (r *APIServerReconciler) init() error {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *APIServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *KubeAPIServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := r.init(); err != nil {
 		return err
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&matryoshkav1alpha1.APIServer{}).
+		For(&matryoshkav1alpha1.KubeAPIServer{}).
 		Watches(
 			&source.Kind{Type: &corev1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(r.enqueueReferencingAPIServers),

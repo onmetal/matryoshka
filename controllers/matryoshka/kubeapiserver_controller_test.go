@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/apiserver"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeapiserver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,18 +32,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("APIServerController", func() {
+var _ = Describe("KubeAPIServerController", func() {
 	const (
-		apiServerSampleFilename = "../../config/samples/matryoshka_v1alpha1_apiserver.yaml"
-		tokenSecretName         = "apiserver-token-sample"
-		certAndKeySecretName    = "apiserver-cert-and-key"
+		tokenSecretName      = "apiserver-token-sample"
+		certAndKeySecretName = "apiserver-cert-and-key"
 	)
 	ctx := context.Background()
 	ns := SetupTest(ctx)
 
 	It("should create a healthy api server", func() {
 		By("applying the sample file")
-		_, err := ApplyFile(ctx, k8sClient, ns.Name, apiServerSampleFilename)
+		_, err := ApplyFile(ctx, k8sClient, ns.Name, KubeAPIServerSampleFilename)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("waiting for a deployment to be created")
@@ -60,7 +59,7 @@ var _ = Describe("APIServerController", func() {
 		By("inspecting the volumes")
 		Expect(template.Spec.Volumes).To(ConsistOf(
 			corev1.Volume{
-				Name: apiserver.ServiceAccountVolumeName,
+				Name: kubeapiserver.ServiceAccountVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
@@ -69,7 +68,7 @@ var _ = Describe("APIServerController", func() {
 				},
 			},
 			corev1.Volume{
-				Name: apiserver.TLSVolumeName,
+				Name: kubeapiserver.TLSVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
@@ -78,7 +77,7 @@ var _ = Describe("APIServerController", func() {
 				},
 			},
 			corev1.Volume{
-				Name: apiserver.TokenVolumeName,
+				Name: kubeapiserver.TokenVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  tokenSecretName,
@@ -106,11 +105,11 @@ var _ = Describe("APIServerController", func() {
 			"--enable-bootstrap-token-auth=true",
 			"--anonymous-auth=true",
 			"--service-account-issuer=https://apiserver-sample:443",
-			fmt.Sprintf("--service-account-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
-			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", apiserver.ServiceAccountVolumePath),
-			fmt.Sprintf("--tls-cert-file=%s/tls.crt", apiserver.TLSVolumePath),
-			fmt.Sprintf("--tls-private-key-file=%s/tls.key", apiserver.TLSVolumePath),
-			fmt.Sprintf("--token-auth-file=%s/%s", apiserver.TokenVolumePath, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey),
+			fmt.Sprintf("--service-account-key-file=%s/tls.key", kubeapiserver.ServiceAccountVolumePath),
+			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", kubeapiserver.ServiceAccountVolumePath),
+			fmt.Sprintf("--tls-cert-file=%s/tls.crt", kubeapiserver.TLSVolumePath),
+			fmt.Sprintf("--tls-private-key-file=%s/tls.key", kubeapiserver.TLSVolumePath),
+			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey),
 		}))
 		Expect(container.Resources).To(Equal(corev1.ResourceRequirements{
 			Requests: map[corev1.ResourceName]resource.Quantity{
@@ -124,16 +123,16 @@ var _ = Describe("APIServerController", func() {
 		}))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
-				Name:      apiserver.ServiceAccountVolumeName,
-				MountPath: apiserver.ServiceAccountVolumePath,
+				Name:      kubeapiserver.ServiceAccountVolumeName,
+				MountPath: kubeapiserver.ServiceAccountVolumePath,
 			},
 			corev1.VolumeMount{
-				Name:      apiserver.TLSVolumeName,
-				MountPath: apiserver.TLSVolumePath,
+				Name:      kubeapiserver.TLSVolumeName,
+				MountPath: kubeapiserver.TLSVolumePath,
 			},
 			corev1.VolumeMount{
-				Name:      apiserver.TokenVolumeName,
-				MountPath: apiserver.TokenVolumePath,
+				Name:      kubeapiserver.TokenVolumeName,
+				MountPath: kubeapiserver.TokenVolumePath,
 			},
 		))
 		Expect(container.ReadinessProbe).To(Equal(&corev1.Probe{

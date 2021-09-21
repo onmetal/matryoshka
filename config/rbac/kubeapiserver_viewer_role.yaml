@@ -1,13 +1,13 @@
-# permissions for end users to view apiservers.
+# permissions for end users to view kubeapiservers.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: apiserver-viewer-role
+  name: kubeapiserver-viewer-role
 rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers
+  - kubeapiservers
   verbs:
   - get
   - list
@@ -15,6 +15,6 @@ rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers/status
+  - kubeapiservers/status
   verbs:
   - get

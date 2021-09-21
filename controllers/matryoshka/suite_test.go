@@ -105,10 +105,10 @@ func SetupTest(ctx context.Context) *corev1.Namespace {
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
 
-		Expect((&APIServerReconciler{
+		Expect((&KubeAPIServerReconciler{
 			Scheme: mgr.GetScheme(),
 			Client: mgr.GetClient(),
-		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup api server controller")
+		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kube api server controller")
 
 		Expect((&KubeconfigReconciler{
 			Scheme: mgr.GetScheme(),
@@ -139,6 +139,6 @@ func ApplyFile(ctx context.Context, c client.Client, namespace, filename string)
 
 const (
 	SamplesPath                         = "../../config/samples"
-	APIServerSampleFilename             = SamplesPath + "/matryoshka_v1alpha1_apiserver.yaml"
+	KubeAPIServerSampleFilename         = SamplesPath + "/matryoshka_v1alpha1_kubeapiserver.yaml"
 	KubeControllerManagerSampleFilename = SamplesPath + "/matryoshka_v1alpha1_kubecontrollermanager.yaml"
 )

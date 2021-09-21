@@ -20,7 +20,7 @@ rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers
+  - kubeapiservers
   verbs:
   - create
   - delete
@@ -32,13 +32,13 @@ rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers/finalizers
+  - kubeapiservers/finalizers
   verbs:
   - update
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers/status
+  - kubeapiservers/status
   verbs:
   - get
   - patch

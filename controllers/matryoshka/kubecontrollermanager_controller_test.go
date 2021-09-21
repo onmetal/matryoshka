@@ -43,7 +43,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 
 	It("should create a healthy kube controller manager", func() {
 		By("applying the sample file")
-		_, err := ApplyFile(ctx, k8sClient, ns.Name, APIServerSampleFilename)
+		_, err := ApplyFile(ctx, k8sClient, ns.Name, KubeAPIServerSampleFilename)
 		Expect(err).NotTo(HaveOccurred())
 		_, err = ApplyFile(ctx, k8sClient, ns.Name, KubeControllerManagerSampleFilename)
 		Expect(err).NotTo(HaveOccurred())

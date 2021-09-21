@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/matryoshka.onmetal.de_kubeconfigs.yaml
-- bases/matryoshka.onmetal.de_apiservers.yaml
+- bases/matryoshka.onmetal.de_kubeapiservers.yaml
 - bases/matryoshka.onmetal.de_kubecontrollermanagers.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
@@ -11,14 +11,14 @@ patchesStrategicMerge:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
 #- patches/webhook_in_kubeconfigs.yaml
-#- patches/webhook_in_apiservers.yaml
+#- patches/webhook_in_kubeapiservers.yaml
 #- patches/webhook_in_kubecontrollermanagers.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable webhook, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
 #- patches/cainjection_in_kubeconfigs.yaml
-#- patches/cainjection_in_apiservers.yaml
+#- patches/cainjection_in_kubeapiservers.yaml
 #- patches/cainjection_in_kubecontrollermanagers.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 

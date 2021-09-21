@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apiserver
+package kubeapiserver
 
 import (
 	"bytes"
@@ -67,61 +67,50 @@ type Resolver struct {
 	client client.Client
 }
 
-func (r *Resolver) getRequests(server *matryoshkav1alpha1.APIServer) *clientutils.GetRequestSet {
+func (r *Resolver) getRequests(server *matryoshkav1alpha1.KubeAPIServer) *clientutils.GetRequestSet {
 	s := clientutils.NewGetRequestSet()
-	r.addAPIServerETCDGetRequests(s, server.Namespace, &server.Spec.ETCD)
-	r.addAPIServerServiceAccountGetRequests(s, server.Namespace, &server.Spec.ServiceAccount)
-	r.addAPIServerAuthenticationGetRequests(s, server.Namespace, &server.Spec.Authentication)
-	if tls := server.Spec.TLS; tls != nil {
-		r.addAPIServerTLSGetRequests(s, server.Namespace, tls)
+
+	s.Insert(clientutils.GetRequest{
+		Key:    client.ObjectKey{Namespace: server.Namespace, Name: server.Spec.ServiceAccount.Secret.Name},
+		Object: &corev1.Secret{},
+	})
+
+	if key := server.Spec.ETCD.Key; key != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: key.Secret.Name},
+			Object: &corev1.Secret{},
+		})
 	}
+	if ca := server.Spec.ETCD.CertificateAuthority; ca != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: ca.Secret.Name},
+			Object: &corev1.Secret{},
+		})
+	}
+
+	if token := server.Spec.Authentication.Token; token != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: token.Secret.Name},
+			Object: &corev1.Secret{},
+		})
+	}
+
+	if tls := server.Spec.TLS; tls != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: tls.Secret.Name},
+			Object: &corev1.Secret{},
+		})
+	}
+
 	return s
 }
 
-func (r *Resolver) addAPIServerETCDGetRequests(s *clientutils.GetRequestSet, namespace string, etcd *matryoshkav1alpha1.APIServerETCD) {
-	if key := etcd.Key; key != nil {
-		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: key.Secret.Name},
-			Object: &corev1.Secret{},
-		})
-	}
-	if ca := etcd.CertificateAuthority; ca != nil {
-		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: ca.Secret.Name},
-			Object: &corev1.Secret{},
-		})
-	}
-}
-
-func (r *Resolver) addAPIServerServiceAccountGetRequests(s *clientutils.GetRequestSet, namespace string, serviceAccount *matryoshkav1alpha1.APIServerServiceAccount) {
-	s.Insert(clientutils.GetRequest{
-		Key:    client.ObjectKey{Namespace: namespace, Name: serviceAccount.Secret.Name},
-		Object: &corev1.Secret{},
-	})
-}
-
-func (r *Resolver) addAPIServerAuthenticationGetRequests(s *clientutils.GetRequestSet, namespace string, auth *matryoshkav1alpha1.APIServerAuthentication) {
-	if token := auth.Token; token != nil {
-		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: token.Secret.Name},
-			Object: &corev1.Secret{},
-		})
-	}
-}
-
-func (r *Resolver) addAPIServerTLSGetRequests(s *clientutils.GetRequestSet, namespace string, tls *matryoshkav1alpha1.APIServerTLS) {
-	s.Insert(clientutils.GetRequest{
-		Key:    client.ObjectKey{Namespace: namespace, Name: tls.Secret.Name},
-		Object: &corev1.Secret{},
-	})
-}
-
-func (r *Resolver) ObjectReferences(server *matryoshkav1alpha1.APIServer) (clientutils.ObjectRefSet, error) {
+func (r *Resolver) ObjectReferences(server *matryoshkav1alpha1.KubeAPIServer) (clientutils.ObjectRefSet, error) {
 	getRequests := r.getRequests(server)
 	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, getRequests)
 }
 
-func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.APIServer) []corev1.Volume {
+func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.KubeAPIServer) []corev1.Volume {
 	var volumes []corev1.Volume
 	volumes = append(volumes, corev1.Volume{
 		Name: ServiceAccountVolumeName,
@@ -164,7 +153,7 @@ func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.APIServer) []core
 	return volumes
 }
 
-func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.APIServer) []corev1.VolumeMount {
+func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServer) []corev1.VolumeMount {
 	var mounts []corev1.VolumeMount
 	mounts = append(mounts, corev1.VolumeMount{
 		Name:      ServiceAccountVolumeName,
@@ -197,7 +186,7 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.APIServer) [
 	return mounts
 }
 
-func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.APIServer) []string {
+func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []string {
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
 		"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
@@ -227,12 +216,12 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.APIServer) []stri
 	}
 	if token := server.Spec.Authentication.Token; token != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(token.Secret.Key, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey)),
+			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(token.Secret.Key, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey)),
 		)
 	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthority; etcdCA != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, utils.StringOrDefault(etcdCA.Secret.Key, matryoshkav1alpha1.DefaultAPIServerETCDCertificateAuthorityKey)),
+			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, utils.StringOrDefault(etcdCA.Secret.Key, matryoshkav1alpha1.DefaultKubeAPIServerETCDCertificateAuthorityKey)),
 		)
 	}
 	if etcdKey := server.Spec.ETCD.Key; etcdKey != nil {
@@ -281,10 +270,10 @@ func ParseAuthTokens(data []byte) ([]AuthToken, error) {
 	}
 }
 
-func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.APIServer) ([]corev1.HTTPHeader, error) {
+func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) ([]corev1.HTTPHeader, error) {
 	var headers []corev1.HTTPHeader
 	if token := server.Spec.Authentication.Token; token != nil {
-		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, token.Secret, matryoshkav1alpha1.DefaultAPIServerTokenAuthenticationKey)
+		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, token.Secret, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey)
 		if err != nil {
 			return nil, err
 		}
@@ -306,7 +295,7 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 	return headers, nil
 }
 
-func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.APIServer, path string) (*corev1.Probe, error) {
+func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer, path string) (*corev1.Probe, error) {
 	scheme := corev1.URISchemeHTTP
 	if server.Spec.TLS != nil {
 		scheme = corev1.URISchemeHTTPS
@@ -334,9 +323,9 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 	}, nil
 }
 
-func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.APIServer) (*appsv1.Deployment, error) {
+func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*appsv1.Deployment, error) {
 	selector := map[string]string{
-		"matryoshka.onmetal.de/app": fmt.Sprintf("apiserver-%s", server.Name),
+		"matryoshka.onmetal.de/app": fmt.Sprintf("kubeapiserver-%s", server.Name),
 	}
 	labels := utils.MergeStringStringMaps(server.Spec.Labels, selector)
 
@@ -425,7 +414,7 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 	return nil
 }
 
-func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.APIServer) (*appsv1.Deployment, error) {
+func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.KubeAPIServer) (*appsv1.Deployment, error) {
 	log := ctrl.LoggerFrom(ctx)
 
 	reqs := r.getRequests(server).List()

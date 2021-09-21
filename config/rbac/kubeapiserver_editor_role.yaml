@@ -1,13 +1,13 @@
-# permissions for end users to edit apiservers.
+# permissions for end users to edit kubeapiservers.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: apiserver-editor-role
+  name: kubeapiserver-editor-role
 rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers
+  - kubeapiservers
   verbs:
   - create
   - delete
@@ -19,6 +19,6 @@ rules:
 - apiGroups:
   - matryoshka.onmetal.de
   resources:
-  - apiservers/status
+  - kubeapiservers/status
   verbs:
   - get

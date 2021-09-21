@@ -20,7 +20,7 @@ resources:
   controller: true
   domain: onmetal.de
   group: matryoshka
-  kind: APIServer
+  kind: KubeAPIServer
   path: github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1
   version: v1alpha1
 - api:

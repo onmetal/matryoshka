@@ -85,11 +85,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Kubeconfig")
 		os.Exit(1)
 	}
-	if err = (&matryoshkacontrollers.APIServerReconciler{
+	if err = (&matryoshkacontrollers.KubeAPIServerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "APIServer")
+		setupLog.Error(err, "unable to create controller", "controller", "KubeAPIServer")
 		os.Exit(1)
 	}
 	if err = (&matryoshkacontrollers.KubeControllerManagerReconciler{

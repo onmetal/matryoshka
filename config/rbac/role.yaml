@@ -7,7 +7,23 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - apps/v1
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
   resources:
   - deployments
   verbs:
@@ -95,19 +111,3 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - v1
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - v1
-  resources:
-  - secrets
-  verbs:
-  - get
-  - list
-  - watch

@@ -47,9 +47,9 @@ type KubeAPIServerReconciler struct {
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=matryoshka.onmetal.de,resources=kubeapiservers/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps/v1,resources=deployments,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups=v1,resources=secrets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=v1,resources=configmaps,verbs=get;list;watch
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

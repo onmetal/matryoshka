@@ -182,11 +182,12 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *ma
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:         "kube-controller-manager",
-							Image:        fmt.Sprintf("k8s.gcr.io/kube-controller-manager:v%s", kcm.Spec.Version),
-							Resources:    kcm.Spec.Resources,
-							Command:      r.kubeControllerManagerCommand(kcm),
-							VolumeMounts: r.kubeControllerManagerVolumeMounts(kcm),
+							Name:            "kube-controller-manager",
+							Image:           fmt.Sprintf("k8s.gcr.io/kube-controller-manager:v%s", kcm.Spec.Version),
+							ImagePullPolicy: kcm.Spec.ImagePullPolicy,
+							Resources:       kcm.Spec.Resources,
+							Command:         r.kubeControllerManagerCommand(kcm),
+							VolumeMounts:    r.kubeControllerManagerVolumeMounts(kcm),
 							LivenessProbe: &corev1.Probe{
 								Handler: corev1.Handler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -203,6 +204,8 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *ma
 							},
 						},
 					},
+					Affinity:                      kcm.Spec.Affinity,
+					Tolerations:                   kcm.Spec.Tolerations,
 					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
 					Volumes:                       r.kubeControllerManagerVolumes(kcm),
 				},

@@ -39,12 +39,20 @@ autolabeler:
       - '*.md'
     branch:
       - '/docs{0,1}\/.+/'
+    title:
+      - '/:book:/'
+      - '/📖/'
   - label: 'bug'
     branch:
       - '/fix\/.+/'
     title:
       - '/fix/i'
+      - '/:bug:/'
+      - '/🐛/'
   - label: 'enhancement'
+    title:
+      - '/:sparkles:/'
+      - '/✨/'
     branch:
       - '/feature\/.+/'
     body:

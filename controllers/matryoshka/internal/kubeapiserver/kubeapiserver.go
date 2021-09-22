@@ -294,7 +294,7 @@ func ParseAuthTokens(in io.Reader) ([]AuthToken, error) {
 
 func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) ([]corev1.HTTPHeader, error) {
 	var headers []corev1.HTTPHeader
-	if token := server.Spec.Authentication.Token; token != nil {
+	if token := server.Spec.Authentication.Token; token != nil && server.Spec.Authentication.Anonymous == nil {
 		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, token.Secret, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey)
 		if err != nil {
 			return nil, err
@@ -310,7 +310,11 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 		}
 
 		headers = append(headers, corev1.HTTPHeader{
-			Name:  "Authorization",
+			Name: "Authorization",
+			// TODO: Just picking any token is not a good idea as
+			// * We're exposing the token in the deployment manifest
+			// * The user referenced in the token might not even have access to health / liveness checks.
+			// We should think of a better concept of health checks in the future.
 			Value: fmt.Sprintf("Bearer %s", tokens[0].Token),
 		})
 	}
@@ -385,10 +389,11 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:      "kube-apiserver",
-							Image:     fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
-							Resources: server.Spec.Resources,
-							Command:   r.apiServerCommand(server),
+							Name:            "kube-apiserver",
+							Image:           fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
+							ImagePullPolicy: server.Spec.ImagePullPolicy,
+							Resources:       server.Spec.Resources,
+							Command:         r.apiServerCommand(server),
 							Ports: []corev1.ContainerPort{
 								{
 									Name:          "https",
@@ -401,6 +406,8 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 							ReadinessProbe: readinessProbe,
 						},
 					},
+					Affinity:                      server.Spec.Affinity,
+					Tolerations:                   server.Spec.Tolerations,
 					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
 					Volumes:                       r.apiServerVolumes(server),
 				},

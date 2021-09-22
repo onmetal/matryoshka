@@ -141,12 +141,6 @@ var _ = Describe("KubeAPIServerController", func() {
 					Path:   "/readyz",
 					Port:   intstr.FromInt(443),
 					Scheme: corev1.URISchemeHTTPS,
-					HTTPHeaders: []corev1.HTTPHeader{
-						{
-							Name:  "Authorization",
-							Value: "Bearer some-token",
-						},
-					},
 				},
 			},
 			InitialDelaySeconds: 15,
@@ -161,12 +155,6 @@ var _ = Describe("KubeAPIServerController", func() {
 					Path:   "/livez",
 					Port:   intstr.FromInt(443),
 					Scheme: corev1.URISchemeHTTPS,
-					HTTPHeaders: []corev1.HTTPHeader{
-						{
-							Name:  "Authorization",
-							Value: "Bearer some-token",
-						},
-					},
 				},
 			},
 			InitialDelaySeconds: 15,

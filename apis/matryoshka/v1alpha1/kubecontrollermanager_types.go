@@ -23,6 +23,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// TODO: See https://github.com/kubernetes/kubernetes/blob/686379281d9a4207d3c3effe9dc43b5cef29108d/cmd/kube-controller-manager/app/options/options.go#L60
+// for kubernetes built-in option grouping and adapt types.
+
 // KubeControllerManagerFieldManager specifies the field manager used for operations on a KubeControllerManager.
 var KubeControllerManagerFieldManager = fmt.Sprintf("%s/KubeControllerManager", GroupVersion.Group)
 
@@ -34,6 +37,13 @@ type KubeControllerManagerSpec struct {
 	// Version is the kube controller manager version to use.
 	//+kubebuilder:validation:Pattern=^[0-9]+\.[0-9]+\.[0-9]+$
 	Version string `json:"version"`
+	// ImagePullPolicy, one of Always, Never, IfNotPresent.
+	// Defaults to Always if :latest tag is specified, or IfNotPresent otherwise.
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// Affinity are the pod's scheduling constraints.
+	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// Tolerations are the pod's tolerations.
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 	// Resources specifies the resources the kube controller manager container requires.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`

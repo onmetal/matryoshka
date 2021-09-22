@@ -23,10 +23,11 @@ import (
 	"io"
 	"strings"
 
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
+
 	"github.com/onmetal/controller-utils/clientutils"
 	"github.com/onmetal/controller-utils/memorystore"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,30 +39,48 @@ import (
 )
 
 const (
-	MountPrefix = "matryoshka-onmetal-de-"
-	PathPrefix  = "/srv/kubernetes/"
+	// VolumePrefix is the prefix used for all volume names.
+	VolumePrefix = "matryoshka-onmetal-de-"
+	// PathPrefix is the prefix used for all volume paths.
+	PathPrefix = "/srv/kubernetes/"
 
-	ServiceAccountName       = "service-account"
-	ServiceAccountVolumeName = MountPrefix + ServiceAccountName
+	// ServiceAccountName is the name used for the service account volume name and path.
+	ServiceAccountName = "service-account"
+	// ServiceAccountVolumeName is the name of the service account volume.
+	ServiceAccountVolumeName = VolumePrefix + ServiceAccountName
+	// ServiceAccountVolumePath is the path of the service account volume.
 	ServiceAccountVolumePath = PathPrefix + ServiceAccountName
 
-	TLSName       = "tls"
-	TLSVolumeName = MountPrefix + TLSName
+	// TLSName is the name used for the tls account volume name and path.
+	TLSName = "tls"
+	// TLSVolumeName is the name of the tls volume.
+	TLSVolumeName = VolumePrefix + TLSName
+	// TLSVolumePath is the path of the tls volume.
 	TLSVolumePath = PathPrefix + TLSName
 
-	TokenName       = "token"
-	TokenVolumeName = MountPrefix + TokenName
+	// TokenName is the name used for the token volume name and path.
+	TokenName = "token"
+	// TokenVolumeName is the name of the token volume.
+	TokenVolumeName = VolumePrefix + TokenName
+	// TokenVolumePath is the path of the token volume.
 	TokenVolumePath = PathPrefix + TokenName
 
-	ETCDCAName       = "etcd-ca"
-	ETCDCAVolumeName = MountPrefix + ETCDCAName
+	// ETCDCAName is the name used for the etcd ca volume name and path.
+	ETCDCAName = "etcd-ca"
+	// ETCDCAVolumeName is the name of the etcd ca volume.
+	ETCDCAVolumeName = VolumePrefix + ETCDCAName
+	// ETCDCAVolumePath is the path of the etcd ca volume.
 	ETCDCAVolumePath = PathPrefix + ETCDCAName
 
-	ETCDKeyName       = "etcd-key"
-	ETCDKeyVolumeName = MountPrefix + ETCDKeyName
+	// ETCDKeyName is the name used for the etcd key volume name and path.
+	ETCDKeyName = "etcd-key"
+	// ETCDKeyVolumeName is the name of the etcd key volume.
+	ETCDKeyVolumeName = VolumePrefix + ETCDKeyName
+	// ETCDKeyVolumePath is the path of the etcd key volume.
 	ETCDKeyVolumePath = PathPrefix + ETCDKeyName
 )
 
+// Resolver resolves matryoshkav1alpha1.KubeAPIServer to its manifests.
 type Resolver struct {
 	scheme *runtime.Scheme
 	client client.Client
@@ -105,6 +124,7 @@ func (r *Resolver) getRequests(server *matryoshkav1alpha1.KubeAPIServer) *client
 	return s
 }
 
+// ObjectReferences returns all object references of a matryoshkav1alpha1.KubeAPIServer.
 func (r *Resolver) ObjectReferences(server *matryoshkav1alpha1.KubeAPIServer) (clientutils.ObjectRefSet, error) {
 	getRequests := r.getRequests(server)
 	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, getRequests)
@@ -234,6 +254,7 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	return cmd
 }
 
+// AuthToken is a token and the user, uid and groups it should be bound to.
 type AuthToken struct {
 	Token  string
 	User   string
@@ -241,8 +262,9 @@ type AuthToken struct {
 	Groups []string
 }
 
-func ParseAuthTokens(data []byte) ([]AuthToken, error) {
-	r := csv.NewReader(bytes.NewReader(data))
+// ParseAuthTokens parses the given data into a slice of AuthToken.
+func ParseAuthTokens(in io.Reader) ([]AuthToken, error) {
+	r := csv.NewReader(in)
 	var tokens []AuthToken
 	for {
 		record, err := r.Read()
@@ -278,7 +300,7 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 			return nil, err
 		}
 
-		tokens, err := ParseAuthTokens(tokensData)
+		tokens, err := ParseAuthTokens(bytes.NewReader(tokensData))
 		if err != nil {
 			return nil, err
 		}
@@ -414,6 +436,7 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 	return nil
 }
 
+// Resolve resolves a matryoshkav1alpha1.KubeAPIServer into its required manifests.
 func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.KubeAPIServer) (*appsv1.Deployment, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -448,28 +471,10 @@ func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.KubeA
 	return deployment, nil
 }
 
-type ResolverOptions struct {
-	Scheme *runtime.Scheme
-	Client client.Client
-}
-
-func (o *ResolverOptions) Validate() error {
-	if o.Scheme == nil {
-		return fmt.Errorf("scheme needs to be set")
-	}
-	if o.Client == nil {
-		return fmt.Errorf("client needs to be set")
-	}
-	return nil
-}
-
-func NewResolver(opts ResolverOptions) (*Resolver, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-
+// NewResolver creates a new Resolver with the given runtime.Scheme and client.Client.
+func NewResolver(scheme *runtime.Scheme, c client.Client) *Resolver {
 	return &Resolver{
-		scheme: opts.Scheme,
-		client: opts.Client,
-	}, nil
+		scheme: scheme,
+		client: c,
+	}
 }

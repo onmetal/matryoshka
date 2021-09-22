@@ -205,15 +205,7 @@ func (r *KubeAPIServerReconciler) enqueueReferencingAPIServers(obj client.Object
 }
 
 func (r *KubeAPIServerReconciler) init() error {
-	var err error
-	r.resolver, err = kubeapiserver.NewResolver(kubeapiserver.ResolverOptions{
-		Scheme: r.Scheme,
-		Client: r.Client,
-	})
-	if err != nil {
-		return err
-	}
-
+	r.resolver = kubeapiserver.NewResolver(r.Scheme, r.Client)
 	return nil
 }
 

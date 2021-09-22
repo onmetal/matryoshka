@@ -114,15 +114,7 @@ func (r *KubeconfigReconciler) delete(ctx context.Context, log logr.Logger, kube
 }
 
 func (r *KubeconfigReconciler) init() error {
-	var err error
-	r.resolver, err = kubeconfig.NewResolver(kubeconfig.ResolverOptions{
-		Client: r.Client,
-		Scheme: r.Scheme,
-	})
-	if err != nil {
-		return err
-	}
-
+	r.resolver = kubeconfig.NewResolver(r.Scheme, r.Client)
 	return nil
 }
 

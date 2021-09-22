@@ -15,5 +15,11 @@ linters-settings:
   revive:
     severity: error
     rules:
+      - name: exported
       - name: if-return
         disabled: true
+
+issues:
+  exclude-use-default: false
+  include:
+    - EXC0015 # disable excluding of issues about comments from revive

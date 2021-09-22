@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/onmetal/controller-utils/clientutils"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 
-	"github.com/onmetal/matryoshka/pkg/utils"
+	"github.com/onmetal/controller-utils/clientutils"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Resolver resolves a matryoshkav1alpha1.KubeControllerManager to its required manifests.
 type Resolver struct {
 	client client.Client
 	scheme *runtime.Scheme
@@ -87,11 +88,14 @@ func (r *Resolver) getRequests(kcm *matryoshkav1alpha1.KubeControllerManager) *c
 	return s
 }
 
+// ObjectReferences returns a clientutils.ObjectRefSet of objects a *matryoshkav1alpha1.KubeControllerManager
+// references.
 func (r *Resolver) ObjectReferences(kcm *matryoshkav1alpha1.KubeControllerManager) (clientutils.ObjectRefSet, error) {
 	reqs := r.getRequests(kcm)
 	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, reqs)
 }
 
+// Resolve resolves a matryoshkav1alpha1.KubeControllerManager to its required manifests.
 func (r *Resolver) Resolve(ctx context.Context, kcm *matryoshkav1alpha1.KubeControllerManager) (*appsv1.Deployment, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -213,31 +217,51 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *ma
 }
 
 const (
-	MountPrefix = "matryoshka-onmetal-de-"
-	PathPrefix  = "/srv/kubernetes/"
+	// VolumePrefix is the prefix of all kube controller manager volumes.
+	VolumePrefix = "matryoshka-onmetal-de-"
+	// PathPrefix is the prefix of all kube controller manager volume path mounts.
+	PathPrefix = "/srv/kubernetes/"
 
-	ServiceAccountName       = "service-account"
-	ServiceAccountVolumeName = MountPrefix + ServiceAccountName
+	// ServiceAccountName is the name used for service account volume name and path.
+	ServiceAccountName = "service-account"
+	// ServiceAccountVolumeName is the name of the service account volume
+	ServiceAccountVolumeName = VolumePrefix + ServiceAccountName
+	// ServiceAccountVolumePath is the path of the service account volume.
 	ServiceAccountVolumePath = PathPrefix + ServiceAccountName
 
-	KubeconfigName       = "kubeconfig"
-	KubeconfigVolumeName = MountPrefix + KubeconfigName
+	// KubeconfigName is the name used for kubeconfig volume name and path.
+	KubeconfigName = "kubeconfig"
+	// KubeconfigVolumeName is the name of the kubeconfig volume.
+	KubeconfigVolumeName = VolumePrefix + KubeconfigName
+	// KubeconfigVolumePath is the path of the kubeconfig volume
 	KubeconfigVolumePath = PathPrefix + KubeconfigName
 
-	AuthorizationKubeconfigName       = "authorization-kubeconfig"
-	AuthorizationKubeconfigVolumeName = MountPrefix + AuthorizationKubeconfigName
+	// AuthorizationKubeconfigName is the name used for the authorization kubeconfig volume name and path.
+	AuthorizationKubeconfigName = "authorization-kubeconfig"
+	// AuthorizationKubeconfigVolumeName is the name of the authorization kubeconfig volume.
+	AuthorizationKubeconfigVolumeName = VolumePrefix + AuthorizationKubeconfigName
+	// AuthorizationKubeconfigVolumePath is the path of the authorization kubeconfig volume.
 	AuthorizationKubeconfigVolumePath = PathPrefix + AuthorizationKubeconfigName
 
-	AuthenticationKubeconfigName       = "authentication-kubeconfig"
-	AuthenticationKubeconfigVolumeName = MountPrefix + AuthenticationKubeconfigName
+	// AuthenticationKubeconfigName is the name used for the authentication kubeconfig volume name and path.
+	AuthenticationKubeconfigName = "authentication-kubeconfig"
+	// AuthenticationKubeconfigVolumeName is the name of the authentication kubeconfig volume.
+	AuthenticationKubeconfigVolumeName = VolumePrefix + AuthenticationKubeconfigName
+	// AuthenticationKubeconfigVolumePath is the path of the authentication kubeconfig volume.
 	AuthenticationKubeconfigVolumePath = PathPrefix + AuthenticationKubeconfigName
 
-	SigningName       = "signing"
-	SigningVolumeName = MountPrefix + SigningName
+	// SigningName is the name used for the signing volume name and path.
+	SigningName = "signing"
+	// SigningVolumeName is the name of the signing volume.
+	SigningVolumeName = VolumePrefix + SigningName
+	// SigningVolumePath is the path of the signing volume.
 	SigningVolumePath = PathPrefix + SigningName
 
-	ServiceAccountRootCertficateName       = "service-account-root-ca"
-	ServiceAccountRootCertficateVolumeName = MountPrefix + ServiceAccountRootCertficateName
+	// ServiceAccountRootCertficateName is the name used for the service account root ca volume and path.
+	ServiceAccountRootCertficateName = "service-account-root-ca"
+	// ServiceAccountRootCertficateVolumeName is the name of the service account root ca volume.
+	ServiceAccountRootCertficateVolumeName = VolumePrefix + ServiceAccountRootCertficateName
+	// ServiceAccountRootCertficateVolumePath is the path of the service account root ca volume.
 	ServiceAccountRootCertficateVolumePath = PathPrefix + ServiceAccountRootCertficateName
 )
 
@@ -383,6 +407,7 @@ func (r *Resolver) kubeControllerManagerVolumes(kcm *matryoshkav1alpha1.KubeCont
 	return volumes
 }
 
+// NewResolver creates a new Resolver.
 func NewResolver(scheme *runtime.Scheme, c client.Client) *Resolver {
 	return &Resolver{scheme: scheme, client: c}
 }

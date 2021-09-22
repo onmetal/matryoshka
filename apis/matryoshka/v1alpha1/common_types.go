@@ -16,12 +16,16 @@ package v1alpha1
 
 import corev1 "k8s.io/api/core/v1"
 
+// ConfigMapSelector selects a config map by name and a field in its data property by the key.
 type ConfigMapSelector struct {
 	corev1.LocalObjectReference `json:",inline"`
-	Key                         string `json:"key,omitempty"`
+	// Key is the key to look up in the config map data. Some types use a default if this value is unset.
+	Key string `json:"key,omitempty"`
 }
 
+// SecretSelector selects a secret by name and a field in its data property by the key.
 type SecretSelector struct {
 	corev1.LocalObjectReference `json:",inline"`
-	Key                         string `json:"key,omitempty"`
+	// Key is the key to look up in the config map data. Some types use a default if this value is unset.
+	Key string `json:"key,omitempty"`
 }

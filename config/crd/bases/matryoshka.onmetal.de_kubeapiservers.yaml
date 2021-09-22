@@ -80,6 +80,8 @@ spec:
                           is used as default key.
                         properties:
                           key:
+                            description: Key is the key to look up in the config map
+                              data. Some types use a default if this value is unset.
                             type: string
                           name:
                             description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
@@ -104,6 +106,8 @@ spec:
                           is used.
                         properties:
                           key:
+                            description: Key is the key to look up in the config map
+                              data. Some types use a default if this value is unset.
                             type: string
                           name:
                             description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names

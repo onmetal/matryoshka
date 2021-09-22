@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
+
 	"github.com/onmetal/controller-utils/clientutils"
 	"github.com/onmetal/controller-utils/memorystore"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapiv1 "k8s.io/client-go/tools/clientcmd/api/v1"
@@ -29,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Resolver resolves matryoshkav1alpha1.Kubeconfig to its manifests.
 type Resolver struct {
 	scheme *runtime.Scheme
 	client client.Client
@@ -84,11 +86,13 @@ func (r *Resolver) addKubeconfigAuthInfoGetRequests(s *clientutils.GetRequestSet
 	}
 }
 
+// ObjectReferences returns a clientutils.ObjectRefSet of all objects the matryoshkav1alpha1.Kubeconfig references.
 func (r *Resolver) ObjectReferences(kubeconfig *matryoshkav1alpha1.Kubeconfig) (clientutils.ObjectRefSet, error) {
 	reqs := r.getRequests(kubeconfig)
 	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, reqs)
 }
 
+// Resolve resolves a matryoshkav1alpha1.Kubeconfig to its required manifests.
 func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -241,28 +245,10 @@ func (r *Resolver) resolveCluster(ctx context.Context, s *memorystore.Store, nam
 	}, nil
 }
 
-type ResolverOptions struct {
-	Client client.Client
-	Scheme *runtime.Scheme
-}
-
-func (o *ResolverOptions) Validate() error {
-	if o.Client == nil {
-		return fmt.Errorf("client needs to be set")
-	}
-	if o.Scheme == nil {
-		return fmt.Errorf("scheme needs to be set")
-	}
-	return nil
-}
-
-func NewResolver(opts ResolverOptions) (*Resolver, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-
+// NewResolver creates a new Resolver.
+func NewResolver(scheme *runtime.Scheme, c client.Client) *Resolver {
 	return &Resolver{
-		scheme: opts.Scheme,
-		client: opts.Client,
-	}, nil
+		scheme: scheme,
+		client: c,
+	}
 }

@@ -26,6 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// GetSecretSelector gets the secret referenced by the namespace and matryoshkav1alpha1.SecretSelector and
+// uses LookupSecretSelector to retrieve the specified key. If key is empty, defaultKey is used.
 func GetSecretSelector(ctx context.Context, c client.Client, namespace string, sel matryoshkav1alpha1.SecretSelector, defaultKey string) ([]byte, error) {
 	clientKey := client.ObjectKey{Namespace: namespace, Name: sel.Name}
 	secret := &corev1.Secret{}
@@ -36,11 +38,10 @@ func GetSecretSelector(ctx context.Context, c client.Client, namespace string, s
 	return LookupSecretSelector(secret, sel, defaultKey)
 }
 
+// LookupSecretSelector looks up the key referenced by the matryoshkav1alpha1.SecretSelector or the defaultKey if
+// key is empty.
 func LookupSecretSelector(secret *corev1.Secret, sel matryoshkav1alpha1.SecretSelector, defaultKey string) ([]byte, error) {
-	key := sel.Key
-	if key == "" {
-		key = defaultKey
-	}
+	key := StringOrDefault(sel.Key, defaultKey)
 
 	v, ok := secret.Data[key]
 	if !ok {
@@ -50,6 +51,8 @@ func LookupSecretSelector(secret *corev1.Secret, sel matryoshkav1alpha1.SecretSe
 	return v, nil
 }
 
+// GetConfigMapSelector gets the config map referenced by the namespace and matryoshkav1alpha1.ConfigMapSelector and
+// uses LookupConfigMapSelector to retrieve the specified key. If key is empty, defaultKey is used.
 func GetConfigMapSelector(ctx context.Context, c client.Client, namespace string, sel matryoshkav1alpha1.ConfigMapSelector, defaultKey string) (string, error) {
 	clientKey := client.ObjectKey{Namespace: namespace, Name: sel.Name}
 	configMap := &corev1.ConfigMap{}
@@ -60,11 +63,10 @@ func GetConfigMapSelector(ctx context.Context, c client.Client, namespace string
 	return LookupConfigMapSelector(configMap, sel, defaultKey)
 }
 
+// LookupConfigMapSelector looks up the key referenced by the matryoshkav1alpha1.ConfigMapSelector or the defaultKey if
+// key is empty.
 func LookupConfigMapSelector(configMap *corev1.ConfigMap, sel matryoshkav1alpha1.ConfigMapSelector, defaultKey string) (string, error) {
-	key := sel.Key
-	if key == "" {
-		key = defaultKey
-	}
+	key := StringOrDefault(sel.Key, defaultKey)
 
 	v, ok := configMap.Data[key]
 	if !ok {
@@ -74,6 +76,7 @@ func LookupConfigMapSelector(configMap *corev1.ConfigMap, sel matryoshkav1alpha1
 	return v, nil
 }
 
+// StringOrDefault returns the given string if it's non-empty, otherwise it returns the defaultValue.
 func StringOrDefault(s string, defaultValue string) string {
 	if s == "" {
 		return defaultValue
@@ -111,6 +114,7 @@ func configMapDataChecksum(data map[string]string) string {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
+// ComputeMountableChecksum computes checksums for secrets and config maps by applying a sha256sum to the ordered items.
 func ComputeMountableChecksum(secrets []corev1.Secret, configMaps []corev1.ConfigMap) (map[string]string, error) {
 	checksums := make(map[string]string, len(secrets)+len(configMaps))
 	for _, secret := range secrets {
@@ -122,6 +126,10 @@ func ComputeMountableChecksum(secrets []corev1.Secret, configMaps []corev1.Confi
 	return checksums, nil
 }
 
+// MergeStringStringMaps returns a new map with the key-value pairs of all given maps merged.
+// If all maps are nil, nil is returned.
+// If a map is non-nil, a non-nil map is returned.
+// The key-value pairs of the last map have the highest priority.
 func MergeStringStringMaps(ms ...map[string]string) map[string]string {
 	var res map[string]string
 	for _, m := range ms {

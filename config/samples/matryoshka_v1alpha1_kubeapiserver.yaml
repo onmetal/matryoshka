@@ -147,26 +147,20 @@ metadata:
 spec:
   replicas: 1
   version: 1.22.1
-  resources:
-    requests:
-      cpu: 200m
-      memory: 300Mi
-    limits:
-      cpu: 1200m
-      memory: 2000Mi
   etcd:
     servers:
     - http://apiserver-etcd-sample:2379
-  tls:
+  secureServing:
     secret:
       name: apiserver-cert-and-key
   serviceAccount:
     issuer: https://apiserver-sample:443
-    secret:
+    keySecret:
+      name: apiserver-cert-and-key
+    signingKeySecret:
       name: apiserver-cert-and-key
   authentication:
-    anonymous: {}
-    bootstrapToken: {}
-    token:
-      secret:
-        name: apiserver-token-sample
+    anonymous: true
+    bootstrapToken: true
+    tokenSecret:
+      name: apiserver-token-sample

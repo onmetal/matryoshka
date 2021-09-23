@@ -69,7 +69,7 @@ check: lint test ## Lint and run tests.
 build: generate fmt addlicense lint ## Build manager binary.
 	go build -o bin/manager main.go
 
-run: manifests generate fmt addlicense lint ## Run a controller from your host.
+run: manifests generate fmt addlicense ## Run a controller from your host.
 	go run ./main.go
 
 docker-build: test ## Build docker image with the manager.

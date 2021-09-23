@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeapiserver"
 	. "github.com/onsi/ginkgo"
@@ -59,7 +57,16 @@ var _ = Describe("KubeAPIServerController", func() {
 		By("inspecting the volumes")
 		Expect(template.Spec.Volumes).To(ConsistOf(
 			corev1.Volume{
-				Name: kubeapiserver.ServiceAccountVolumeName,
+				Name: kubeapiserver.ServiceAccountKeyVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  certAndKeySecretName,
+						DefaultMode: pointer.Int32Ptr(420),
+					},
+				},
+			},
+			corev1.Volume{
+				Name: kubeapiserver.ServiceAccountSigningKeyVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
@@ -105,26 +112,20 @@ var _ = Describe("KubeAPIServerController", func() {
 			"--enable-bootstrap-token-auth=true",
 			"--anonymous-auth=true",
 			"--service-account-issuer=https://apiserver-sample:443",
-			fmt.Sprintf("--service-account-key-file=%s/tls.key", kubeapiserver.ServiceAccountVolumePath),
-			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", kubeapiserver.ServiceAccountVolumePath),
+			fmt.Sprintf("--service-account-key-file=%s/tls.key", kubeapiserver.ServiceAccountKeyVolumePath),
+			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", kubeapiserver.ServiceAccountSigningKeyVolumePath),
 			fmt.Sprintf("--tls-cert-file=%s/tls.crt", kubeapiserver.TLSVolumePath),
 			fmt.Sprintf("--tls-private-key-file=%s/tls.key", kubeapiserver.TLSVolumePath),
-			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey),
-		}))
-		Expect(container.Resources).To(Equal(corev1.ResourceRequirements{
-			Requests: map[corev1.ResourceName]resource.Quantity{
-				"cpu":    resource.MustParse("200m"),
-				"memory": resource.MustParse("300Mi"),
-			},
-			Limits: map[corev1.ResourceName]resource.Quantity{
-				"cpu":    resource.MustParse("1200m"),
-				"memory": resource.MustParse("2000Mi"),
-			},
+			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey),
 		}))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
-				Name:      kubeapiserver.ServiceAccountVolumeName,
-				MountPath: kubeapiserver.ServiceAccountVolumePath,
+				Name:      kubeapiserver.ServiceAccountKeyVolumeName,
+				MountPath: kubeapiserver.ServiceAccountKeyVolumePath,
+			},
+			corev1.VolumeMount{
+				Name:      kubeapiserver.ServiceAccountSigningKeyVolumeName,
+				MountPath: kubeapiserver.ServiceAccountSigningKeyVolumePath,
 			},
 			corev1.VolumeMount{
 				Name:      kubeapiserver.TLSVolumeName,

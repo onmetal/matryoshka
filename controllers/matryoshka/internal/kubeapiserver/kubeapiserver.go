@@ -23,6 +23,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
+
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 
 	"github.com/onmetal/controller-utils/clientutils"
@@ -44,12 +46,19 @@ const (
 	// PathPrefix is the prefix used for all volume paths.
 	PathPrefix = "/srv/kubernetes/"
 
-	// ServiceAccountName is the name used for the service account volume name and path.
-	ServiceAccountName = "service-account"
-	// ServiceAccountVolumeName is the name of the service account volume.
-	ServiceAccountVolumeName = VolumePrefix + ServiceAccountName
-	// ServiceAccountVolumePath is the path of the service account volume.
-	ServiceAccountVolumePath = PathPrefix + ServiceAccountName
+	// ServiceAccountKeyName is the name used for the service account volume name and path.
+	ServiceAccountKeyName = "service-account-key"
+	// ServiceAccountKeyVolumeName is the name of the service account volume.
+	ServiceAccountKeyVolumeName = VolumePrefix + ServiceAccountKeyName
+	// ServiceAccountKeyVolumePath is the path of the service account volume.
+	ServiceAccountKeyVolumePath = PathPrefix + ServiceAccountKeyName
+
+	// ServiceAccountSigningKeyName is the name used for the service account volume name and path.
+	ServiceAccountSigningKeyName = "service-account-skey"
+	// ServiceAccountSigningKeyVolumeName is the name of the service account volume.
+	ServiceAccountSigningKeyVolumeName = VolumePrefix + ServiceAccountSigningKeyName
+	// ServiceAccountSigningKeyVolumePath is the path of the service account volume.
+	ServiceAccountSigningKeyVolumePath = PathPrefix + ServiceAccountSigningKeyName
 
 	// TLSName is the name used for the tls account volume name and path.
 	TLSName = "tls"
@@ -90,31 +99,35 @@ func (r *Resolver) getRequests(server *matryoshkav1alpha1.KubeAPIServer) *client
 	s := clientutils.NewGetRequestSet()
 
 	s.Insert(clientutils.GetRequest{
-		Key:    client.ObjectKey{Namespace: server.Namespace, Name: server.Spec.ServiceAccount.Secret.Name},
+		Key:    client.ObjectKey{Namespace: server.Namespace, Name: server.Spec.ServiceAccount.KeySecret.Name},
+		Object: &corev1.Secret{},
+	})
+	s.Insert(clientutils.GetRequest{
+		Key:    client.ObjectKey{Namespace: server.Namespace, Name: server.Spec.ServiceAccount.SigningKeySecret.Name},
 		Object: &corev1.Secret{},
 	})
 
-	if key := server.Spec.ETCD.Key; key != nil {
+	if key := server.Spec.ETCD.KeySecret; key != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: server.Namespace, Name: key.Secret.Name},
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: key.Name},
 			Object: &corev1.Secret{},
 		})
 	}
-	if ca := server.Spec.ETCD.CertificateAuthority; ca != nil {
+	if ca := server.Spec.ETCD.CertificateAuthoritySecret; ca != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: server.Namespace, Name: ca.Secret.Name},
-			Object: &corev1.Secret{},
-		})
-	}
-
-	if token := server.Spec.Authentication.Token; token != nil {
-		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: server.Namespace, Name: token.Secret.Name},
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: ca.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if tls := server.Spec.TLS; tls != nil {
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: token.Name},
+			Object: &corev1.Secret{},
+		})
+	}
+
+	if tls := server.Spec.SecureServing; tls != nil {
 		s.Insert(clientutils.GetRequest{
 			Key:    client.ObjectKey{Namespace: server.Namespace, Name: tls.Secret.Name},
 			Object: &corev1.Secret{},
@@ -133,12 +146,18 @@ func (r *Resolver) ObjectReferences(server *matryoshkav1alpha1.KubeAPIServer) (c
 func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.KubeAPIServer) []corev1.Volume {
 	var volumes []corev1.Volume
 	volumes = append(volumes, corev1.Volume{
-		Name: ServiceAccountVolumeName,
+		Name: ServiceAccountKeyVolumeName,
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{SecretName: server.Spec.ServiceAccount.Secret.Name},
+			Secret: &corev1.SecretVolumeSource{SecretName: server.Spec.ServiceAccount.KeySecret.Name},
 		},
 	})
-	if tls := server.Spec.TLS; tls != nil {
+	volumes = append(volumes, corev1.Volume{
+		Name: ServiceAccountSigningKeyVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{SecretName: server.Spec.ServiceAccount.SigningKeySecret.Name},
+		},
+	})
+	if tls := server.Spec.SecureServing; tls != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: TLSVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -146,27 +165,27 @@ func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.KubeAPIServer) []
 			},
 		})
 	}
-	if token := server.Spec.Authentication.Token; token != nil {
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: TokenVolumeName,
 			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{SecretName: token.Secret.Name},
+				Secret: &corev1.SecretVolumeSource{SecretName: token.Name},
 			},
 		})
 	}
-	if etcdCA := server.Spec.ETCD.CertificateAuthority; etcdCA != nil {
+	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: ETCDCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{SecretName: etcdCA.Secret.Name},
+				Secret: &corev1.SecretVolumeSource{SecretName: etcdCA.Name},
 			},
 		})
 	}
-	if etcdKey := server.Spec.ETCD.Key; etcdKey != nil {
+	if etcdKey := server.Spec.ETCD.KeySecret; etcdKey != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: ETCDKeyVolumeName,
 			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{SecretName: etcdKey.Secret.Name},
+				Secret: &corev1.SecretVolumeSource{SecretName: etcdKey.Name},
 			},
 		})
 	}
@@ -176,28 +195,32 @@ func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.KubeAPIServer) []
 func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServer) []corev1.VolumeMount {
 	var mounts []corev1.VolumeMount
 	mounts = append(mounts, corev1.VolumeMount{
-		Name:      ServiceAccountVolumeName,
-		MountPath: ServiceAccountVolumePath,
+		Name:      ServiceAccountKeyVolumeName,
+		MountPath: ServiceAccountKeyVolumePath,
 	})
-	if tls := server.Spec.TLS; tls != nil {
+	mounts = append(mounts, corev1.VolumeMount{
+		Name:      ServiceAccountSigningKeyVolumeName,
+		MountPath: ServiceAccountSigningKeyVolumePath,
+	})
+	if tls := server.Spec.SecureServing; tls != nil {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      TLSVolumeName,
 			MountPath: TLSVolumePath,
 		})
 	}
-	if token := server.Spec.Authentication.Token; token != nil {
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      TokenVolumeName,
 			MountPath: TokenVolumePath,
 		})
 	}
-	if etcdCA := server.Spec.ETCD.CertificateAuthority; etcdCA != nil {
+	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      ETCDCAVolumeName,
 			MountPath: ETCDCAVolumePath,
 		})
 	}
-	if etcdKey := server.Spec.ETCD.Key; etcdKey != nil {
+	if etcdKey := server.Spec.ETCD.KeySecret; etcdKey != nil {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      ETCDKeyVolumeName,
 			MountPath: ETCDKeyVolumePath,
@@ -220,31 +243,31 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 		"--service-cluster-ip-range=100.64.0.0/24",
 		fmt.Sprintf("--etcd-servers=%s", strings.Join(server.Spec.ETCD.Servers, ",")),
 
-		fmt.Sprintf("--enable-bootstrap-token-auth=%t", server.Spec.Authentication.BootstrapToken != nil),
-		fmt.Sprintf("--anonymous-auth=%t", server.Spec.Authentication.Anonymous != nil),
+		fmt.Sprintf("--enable-bootstrap-token-auth=%t", server.Spec.Authentication.BootstrapToken),
+		fmt.Sprintf("--anonymous-auth=%t", server.Spec.Authentication.Anonymous),
 
 		fmt.Sprintf("--service-account-issuer=%s", server.Spec.ServiceAccount.Issuer),
-		fmt.Sprintf("--service-account-key-file=%s/tls.key", ServiceAccountVolumePath),
-		fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", ServiceAccountVolumePath),
+		fmt.Sprintf("--service-account-key-file=%s/tls.key", ServiceAccountKeyVolumePath),
+		fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", ServiceAccountSigningKeyVolumePath),
 	}
 
-	if tls := server.Spec.TLS; tls != nil {
+	if tls := server.Spec.SecureServing; tls != nil {
 		cmd = append(cmd,
 			fmt.Sprintf("--tls-cert-file=%s/tls.crt", TLSVolumePath),
 			fmt.Sprintf("--tls-private-key-file=%s/tls.key", TLSVolumePath),
 		)
 	}
-	if token := server.Spec.Authentication.Token; token != nil {
+	if tokenSecret := server.Spec.Authentication.TokenSecret; tokenSecret != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(token.Secret.Key, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey)),
+			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(tokenSecret.Key, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey)),
 		)
 	}
-	if etcdCA := server.Spec.ETCD.CertificateAuthority; etcdCA != nil {
+	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, utils.StringOrDefault(etcdCA.Secret.Key, matryoshkav1alpha1.DefaultKubeAPIServerETCDCertificateAuthorityKey)),
+			fmt.Sprintf("--etcd-cafile=%s/%s", ETCDCAVolumePath, utils.StringOrDefault(etcdCA.Key, matryoshkav1alpha1.DefaultKubeAPIServerETCDCertificateAuthoritySecretKey)),
 		)
 	}
-	if etcdKey := server.Spec.ETCD.Key; etcdKey != nil {
+	if etcdKey := server.Spec.ETCD.KeySecret; etcdKey != nil {
 		cmd = append(cmd,
 			fmt.Sprintf("--etcd-certfile=%s/tls.crt", ETCDKeyVolumePath),
 			fmt.Sprintf("--etcd-certfile=%s/tls.key", ETCDKeyVolumePath),
@@ -294,8 +317,8 @@ func ParseAuthTokens(in io.Reader) ([]AuthToken, error) {
 
 func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) ([]corev1.HTTPHeader, error) {
 	var headers []corev1.HTTPHeader
-	if token := server.Spec.Authentication.Token; token != nil && server.Spec.Authentication.Anonymous == nil {
-		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, token.Secret, matryoshkav1alpha1.DefaultKubeAPIServerTokenAuthenticationKey)
+	if token := server.Spec.Authentication.TokenSecret; token != nil && !server.Spec.Authentication.Anonymous {
+		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, *token, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +346,7 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 
 func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer, path string) (*corev1.Probe, error) {
 	scheme := corev1.URISchemeHTTP
-	if server.Spec.TLS != nil {
+	if server.Spec.SecureServing != nil {
 		scheme = corev1.URISchemeHTTPS
 	}
 
@@ -349,12 +372,7 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 	}, nil
 }
 
-func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*appsv1.Deployment, error) {
-	selector := map[string]string{
-		"matryoshka.onmetal.de/app": fmt.Sprintf("kubeapiserver-%s", server.Name),
-	}
-	labels := utils.MergeStringStringMaps(server.Spec.Labels, selector)
-
+func (r *Resolver) apiServerContainer(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
 	livenessProbe, err := r.probeForPath(ctx, s, server, "/livez")
 	if err != nil {
 		return nil, fmt.Errorf("could not create liveness probe: %w", err)
@@ -365,6 +383,68 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 		return nil, fmt.Errorf("could not create readiness probe: %w", err)
 	}
 
+	container := &corev1.Container{
+		Name:    "kube-apiserver",
+		Image:   fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
+		Command: r.apiServerCommand(server),
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "https",
+				ContainerPort: 443,
+				Protocol:      corev1.ProtocolTCP,
+			},
+		},
+		VolumeMounts:   r.apiServerVolumeMounts(server),
+		LivenessProbe:  livenessProbe,
+		ReadinessProbe: readinessProbe,
+	}
+
+	if err := common.ApplyContainerOverlay(container, &server.Spec.Overlay.Spec.APIServerContainer); err != nil {
+		return nil, err
+	}
+
+	return container, nil
+}
+
+func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.PodSpec, error) {
+	apiServerContainer, err := r.apiServerContainer(ctx, s, server)
+	if err != nil {
+		return nil, err
+	}
+
+	spec := &corev1.PodSpec{
+		Containers: []corev1.Container{
+			*apiServerContainer,
+		},
+		TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
+		Volumes:                       r.apiServerVolumes(server),
+	}
+
+	if err := common.ApplyPodOverlay(spec, &server.Spec.Overlay.Spec.PodOverlay); err != nil {
+		return nil, err
+	}
+
+	return spec, nil
+}
+
+func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*appsv1.Deployment, error) {
+	baseLabels := map[string]string{
+		"matryoshka.onmetal.de/app": fmt.Sprintf("kubeapiserver-%s", server.Name),
+	}
+	meta := server.Spec.Overlay.ObjectMeta
+	meta.Labels = utils.MergeStringStringMaps(meta.Labels, baseLabels)
+	selector := server.Spec.Selector
+	if selector == nil {
+		selector = &metav1.LabelSelector{
+			MatchLabels: baseLabels,
+		}
+	}
+
+	spec, err := r.deploymentPodSpec(ctx, s, server)
+	if err != nil {
+		return nil, err
+	}
+
 	deploy := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
@@ -373,44 +453,15 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, server 
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   server.Namespace,
 			Name:        server.Name,
-			Labels:      labels,
-			Annotations: server.Spec.Annotations,
+			Labels:      meta.Labels,
+			Annotations: meta.Annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(server.Spec.Replicas),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: selector,
-			},
+			Replicas: server.Spec.Replicas,
+			Selector: selector,
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels:      labels,
-					Annotations: server.Spec.Annotations,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:            "kube-apiserver",
-							Image:           fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
-							ImagePullPolicy: server.Spec.ImagePullPolicy,
-							Resources:       server.Spec.Resources,
-							Command:         r.apiServerCommand(server),
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "https",
-									ContainerPort: 443,
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							VolumeMounts:   r.apiServerVolumeMounts(server),
-							LivenessProbe:  livenessProbe,
-							ReadinessProbe: readinessProbe,
-						},
-					},
-					Affinity:                      server.Spec.Affinity,
-					Tolerations:                   server.Spec.Tolerations,
-					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
-					Volumes:                       r.apiServerVolumes(server),
-				},
+				ObjectMeta: meta,
+				Spec:       *spec,
 			},
 		},
 	}
@@ -437,9 +488,7 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 		return fmt.Errorf("error computing mountable checksum: %w", err)
 	}
 
-	for k, v := range checksums {
-		metav1.SetMetaDataAnnotation(&deployment.Spec.Template.ObjectMeta, k, v)
-	}
+	deployment.Spec.Template.Annotations = utils.MergeStringStringMaps(deployment.Spec.Template.Annotations, checksums)
 	return nil
 }
 
@@ -465,7 +514,7 @@ func (r *Resolver) Resolve(ctx context.Context, server *matryoshkav1alpha1.KubeA
 	}
 
 	log.V(1).Info("Building deployment.")
-	deployment, err := r.deployment(ctx, s, server)
+	deployment, err := r.deployment(ctx, s, server.DeepCopy())
 	if err != nil {
 		return nil, fmt.Errorf("error building api server deployment: %w", err)
 	}

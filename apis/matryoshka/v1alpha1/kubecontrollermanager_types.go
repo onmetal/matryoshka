@@ -32,156 +32,142 @@ var KubeControllerManagerFieldManager = fmt.Sprintf("%s/KubeControllerManager", 
 // KubeControllerManagerSpec defines the desired state of KubeControllerManager
 type KubeControllerManagerSpec struct {
 	// Replicas specifies the number of kube controller manager replicas to create.
+	// This is a pointer to distinguish between not specified and explicit zero.
 	//+kubebuilder:validation:Minimum=0
-	Replicas int32 `json:"replicas"`
+	//+kubebuilder:default=1
+	Replicas *int32 `json:"replicas"`
 	// Version is the kube controller manager version to use.
-	//+kubebuilder:validation:Pattern=^[0-9]+\.[0-9]+\.[0-9]+$
 	Version string `json:"version"`
-	// ImagePullPolicy, one of Always, Never, IfNotPresent.
-	// Defaults to Always if :latest tag is specified, or IfNotPresent otherwise.
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
-	// Affinity are the pod's scheduling constraints.
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
-	// Tolerations are the pod's tolerations.
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
-	// Resources specifies the resources the kube controller manager container requires.
-	// +optional
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
-	// Labels sets labels on resources managed by this.
-	Labels map[string]string `json:"labels,omitempty"`
-	// Annotations sets annotations on resources managed by this.
-	Annotations map[string]string `json:"annotations,omitempty"`
-	// Cluster specifies cluster specific settings.
-	Cluster KubeControllerManagerCluster `json:"cluster"`
-	// Controllers are controller settings for the kube controller manager.
-	// +optional
-	Controllers KubeControllerManagerControllers `json:"controllers,omitempty"`
-	// KubernetesAPI are settings on how to interface with the Kubernetes API.
-	KubernetesAPI KubeControllerManagerKubernetesAPI `json:"kubernetesAPI"`
-	// ServiceAccount specifies how the kube controller manager should handle service accounts.
-	ServiceAccount KubeControllerManagerServiceAccount `json:"serviceAccount"`
+	// Selector specifies the label selector to discover managed pods.
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	// Overlay is the KubeControllerManagerPodTemplateOverlay to use to scaffold the deployment.
+	Overlay KubeControllerManagerPodTemplateOverlay `json:"overlay,omitempty"`
+	// Generic is the generic / base configuration required for any kube controller manager.
+	Generic KubeControllerManagerGenericConfiguration `json:"generic"`
+	// Shared is configuration that is shared among any controller or other configuration options of a
+	// kube controller manager.
+	Shared KubeControllerManagerSharedConfiguration `json:"shared"`
+	// CSRSigningController is configuration for the CSR (Certificate Signing Request) signing controller.
+	CSRSigningController *KubeControllerManagerCSRSigningControllerConfiguration `json:"csrSigningController,omitempty"`
+	// ServiceAccountController is configuration for the service account controller.
+	ServiceAccountController *KubeControllerManagerServiceAccountControllerConfiguration `json:"serviceAccountController,omitempty"`
+	// Authentication is configuration how the kube controller manager handles authentication / authenticating requests.
+	Authentication *KubeControllerManagerAuthentication `json:"authentication,omitempty"`
+	// Authorization is configuration how the kube controller manager handles authorization / authorizing requests.
+	Authorization *KubeControllerManagerAuthorization `json:"authorization,omitempty"`
 }
 
-// DefaultKubeControllerManagerKubeconfigKey is the default key to lookup KubeControllerManagerKubeconfig kubeconfigs.
-const DefaultKubeControllerManagerKubeconfigKey = "kubeconfig"
-
-// KubeControllerManagerKubeconfig specifies the kubeconfig for the kube controller manager to use.
-type KubeControllerManagerKubeconfig struct {
-	// Secret references the secret for the kube controller manager to lookup. If key is unset,
-	// DefaultKubeControllerManagerKubeconfigKey is used.
-	Secret SecretSelector `json:"secret"`
+// KubeControllerManagerPodTemplateOverlay is the template overlay for pods.
+type KubeControllerManagerPodTemplateOverlay struct {
+	// ObjectMeta specifies additional object metadata to set on the managed pods.
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	// Spec is the KubeAPIServerPodOverlay overlay specification for the pod.
+	Spec KubeControllerManagerPodOverlay `json:"spec,omitempty"`
 }
 
-// DefaultKubeControllerManagerAuthorizationKubeconfigKey is the default key to lookup
-// KubeControllerManagerAuthorizationKubeconfig kubeconfigs.
-const DefaultKubeControllerManagerAuthorizationKubeconfigKey = "kubeconfig"
-
-// KubeControllerManagerAuthorizationKubeconfig specifies the authorization kubeconfig for the kube controller manager
-// to use.
-type KubeControllerManagerAuthorizationKubeconfig struct {
-	// Secret references the secret for the kube controller manager to lookup. If key is unset,
-	// DefaultKubeControllerManagerAuthorizationKubeconfigKey is used.
-	Secret SecretSelector `json:"secret"`
+// KubeControllerManagerPodOverlay is the PodOverlay with additional ContainerOverlay containers.
+type KubeControllerManagerPodOverlay struct {
+	// PodOverlay is the base managed pod specification.
+	PodOverlay `json:",inline,omitempty"`
+	// ControllerManagerContainer is the ContainerOverlay that hosts the api server.
+	ControllerManagerContainer ContainerOverlay `json:"controllerManagerContainer,omitempty"`
 }
 
-// DefaultKubeControllerManagerAuthenticationKubeconfigKey is the default key to lookup
-// KubeControllerManagerAuthenticationKubeconfig kubeconfigs.
-const DefaultKubeControllerManagerAuthenticationKubeconfigKey = "kubeconfig"
+// DefaultKubeControllerManagerGenericConfigurationKubeconfigKey is the default key to lookup
+// KubeControllerManagerGenericConfiguration kubeconfigs.
+const DefaultKubeControllerManagerGenericConfigurationKubeconfigKey = "kubeconfig"
 
-// KubeControllerManagerAuthenticationKubeconfig specifies the authentication kubeconfig for the kube controller manager
-// to use.
-type KubeControllerManagerAuthenticationKubeconfig struct {
-	// Secret references the secret for the kube controller manager to lookup. If key is unset,
-	// DefaultKubeControllerManagerAuthenticationKubeconfigKey is used.
-	Secret SecretSelector `json:"secret"`
-}
-
-// KubeControllerManagerKubernetesAPI specifies how the kube controller manager accesses the Kubernetes API.
-type KubeControllerManagerKubernetesAPI struct {
-	// Kubeconfig specifies the kubeconfig for the kube controller manager to use.
-	Kubeconfig KubeControllerManagerKubeconfig `json:"kubeconfig"`
-	// AuthorizationKubeconfig specifies the authorization kubeconfig for the kube controller manager to use.
-	AuthorizationKubeconfig *KubeControllerManagerAuthorizationKubeconfig `json:"authorizationKubeconfig,omitempty"`
-	// AuthenticationKubeconfig specifies the authentication kubeconfig for the kube controller manager to use.
-	AuthenticationKubeconfig *KubeControllerManagerAuthenticationKubeconfig `json:"authenticationKubeconfig,omitempty"`
-}
-
-// KubeControllerManagerCluster specifies cluster settings for the kube controller manager.
-type KubeControllerManagerCluster struct {
-	// Name is the cluster name for the kube controller manager to use.
-	Name string `json:"name"`
-	// Signing specifies signing settings for the cluster.
-	Signing *KubeControllerManagerClusterSigning `json:"signing,omitempty"`
-}
-
-// KubeControllerManagerClusterSigning specifies signing settings for the cluster.
-type KubeControllerManagerClusterSigning struct {
-	// Secret specifies the secret the kube controller manager uses for signing.
-	// It is expected that the secret contains 'ca.crt' and 'tls.key'.
-	Secret corev1.LocalObjectReference `json:"secret"`
-}
-
-// DefaultKubeControllerManagerServiceAccountPrivateKeyKey is the default key for
-// KubeControllerManagerServiceAccountPrivateKey to look up.
-const DefaultKubeControllerManagerServiceAccountPrivateKeyKey = "tls.key"
-
-// KubeControllerManagerServiceAccountPrivateKey specifies the private key for the kube controller manager to use.
-type KubeControllerManagerServiceAccountPrivateKey struct {
-	// Secret specifies the secret to look up for the private key of the kube controller manager.
-	// If key is left empty, DefaultKubeControllerManagerServiceAccountPrivateKeyKey will be used as default.
-	Secret SecretSelector `json:"secret"`
-}
-
-// DefaultKubeControllerManagerServiceAccountRootCertificateAuthorityKey is the default key for
-// KubeControllerManagerServiceAccountRootCertificateAuthority to look up.
-const DefaultKubeControllerManagerServiceAccountRootCertificateAuthorityKey = "ca.crt"
-
-// KubeControllerManagerServiceAccountRootCertificateAuthority specifies the root certificate authority for service
-// accounts for the kube controller manager to use.
-type KubeControllerManagerServiceAccountRootCertificateAuthority struct {
-	// Secret specifies the secret to look up for the root ca of service accounts of the kube controller manager.
-	// If key is left empty, DefaultKubeControllerManagerServiceAccountRootCertificateAuthorityKey will be used as
-	// default.
-	Secret SecretSelector `json:"secret"`
-}
-
-// KubeControllerManagerServiceAccount specifies settings on how the kube controller manager manages service accounts.
-type KubeControllerManagerServiceAccount struct {
-	// RootCertificateAuthority specifies an optional root certificate authority to distribute as part of each
-	// service account.
-	RootCertificateAuthority *KubeControllerManagerServiceAccountRootCertificateAuthority `json:"rootCertificateAuthority,omitempty"`
-	// Private key specifies the private key for the kube controller manager to use.
-	PrivateKey KubeControllerManagerServiceAccountPrivateKey `json:"privateKey,omitempty"`
-}
-
-// KubeControllerManagerAllDefaultOnControllers can be used in KubeControllerManagerControllers to enable all
-// 'on-by-default' controllers of the kube controller manager.
-const KubeControllerManagerAllDefaultOnControllers = "*"
-
-// KubeControllerManagerControllers specifies controller specific settings.
-type KubeControllerManagerControllers struct {
-	// List is the list of all enabled controllers.
+// KubeControllerManagerGenericConfiguration is generic kube controller manager configuration required for
+// each kube controller manager to start up.
+type KubeControllerManagerGenericConfiguration struct {
+	// KubeconfigSecret is the reference to the kubeconfig secret.
+	KubeconfigSecret SecretSelector `json:"kubeconfigSecret"`
+	// Controllers is the list of controllers to enable or disable
+	// '*' means "all enabled by default controllers"
+	// 'foo' means "enable 'foo'"
+	// '-foo' means "disable 'foo'"
+	// first item for a particular name wins.
 	//+kubebuilder:default={*}
-	List []string `json:"list,omitempty"`
-	// Credentials specifies how the controllers managed by kube controller manager should handle
-	// their credentials towards the Kubernetes API.
-	//+kubebuilder:default=ServiceAccount
-	//+kubebuilder:validation:Enum=Global;ServiceAccount
-	Credentials KubeControllerManagerControllersCredentials `json:"credentials,omitempty"`
+	Controllers []string `json:"controllers,omitempty"`
 }
 
-// KubeControllerManagerControllersCredentials specifies how the controllers managed by kube controller manager should
+// KubeControllerManagerControllerCredentials specifies how the controllers managed by kube controller manager should
 // handle their credentials towards the Kubernetes API.
-type KubeControllerManagerControllersCredentials string
+type KubeControllerManagerControllerCredentials string
 
 const (
 	// KubeControllerManagerGlobalCredentials instructs kube controller manager controllers to use the same set of
 	// global credentials as the kube controller manager.
-	KubeControllerManagerGlobalCredentials KubeControllerManagerControllersCredentials = "Global"
+	KubeControllerManagerGlobalCredentials KubeControllerManagerControllerCredentials = "Global"
 	// KubeControllerManagerServiceAccountCredentials instructs kube controller manager controllers to each use
 	// individual service accounts.
-	KubeControllerManagerServiceAccountCredentials KubeControllerManagerControllersCredentials = "ServiceAccount"
+	KubeControllerManagerServiceAccountCredentials KubeControllerManagerControllerCredentials = "ServiceAccount"
 )
+
+// KubeControllerManagerSharedConfiguration is configuration that is shared among other components of the
+// kube controller manager.
+type KubeControllerManagerSharedConfiguration struct {
+	// ClusterName is the instance prefix for the cluster.
+	//+kubebuilder:default=kubernetes
+	ClusterName string `json:"clusterName,omitempty"`
+	// ControllerCredentials specifies how the controllers managed by kube controller manager should handle
+	// their credentials towards the Kubernetes API.
+	//+kubebuilder:default=ServiceAccount
+	//+kubebuilder:validation:Enum=Global;ServiceAccount
+	ControllerCredentials KubeControllerManagerControllerCredentials `json:"controllerCredentials,omitempty"`
+}
+
+// KubeControllerManagerCSRSigningControllerConfiguration is configuration how the CSR (Certificate Signing Request)
+// signing controller operates.
+type KubeControllerManagerCSRSigningControllerConfiguration struct {
+	// ClusterSigningSecret references the secret used for signing.
+	// It is expected that this secret contains 'ca.crt' and 'tls.key' as items.
+	ClusterSigningSecret *corev1.LocalObjectReference `json:"clusterSigningSecret,omitempty"`
+}
+
+const (
+	// DefaultKubeControllerManagerServiceAccountControllerConfigurationPrivateKeySecretKey is the default key for
+	// KubeControllerManagerServiceAccountControllerConfiguration.PrivateKeySecret.
+	DefaultKubeControllerManagerServiceAccountControllerConfigurationPrivateKeySecretKey = "tls.key"
+	// DefaultKubeControllerManagerServiceAccountControllerConfigurationRootCertificateSecretKey is the default key for
+	// KubeControllerManagerServiceAccountControllerConfiguration.RootCertificateSecret.
+	DefaultKubeControllerManagerServiceAccountControllerConfigurationRootCertificateSecretKey = "tls.crt"
+)
+
+// KubeControllerManagerServiceAccountControllerConfiguration contains configuration on how the kube
+// controller manager service account controller operates.
+type KubeControllerManagerServiceAccountControllerConfiguration struct {
+	// PrivateKeySecret is the secret containing the private key to sign service accounts with.
+	PrivateKeySecret *SecretSelector `json:"privateKeySecret,omitempty"`
+	// RootCertificateSecret is the secret containing an optional root certificate to distribute
+	// with each service account.
+	RootCertificateSecret *SecretSelector `json:"rootCertificateSecret,omitempty"`
+}
+
+// DefaultKubeControllerManagerAuthenticationKubeconfigSecretKey is the default key for
+// KubeControllerManagerAuthentication.KubeconfigSecret.
+const DefaultKubeControllerManagerAuthenticationKubeconfigSecretKey = "kubeconfig"
+
+// KubeControllerManagerAuthentication is configuration how the kube controller manager handles authentication
+// and / or authenticating requests.
+type KubeControllerManagerAuthentication struct {
+	// SkipLookup instructs the kube controller manager to skip looking up additional authentication
+	// information from the api server.
+	SkipLookup bool `json:"skipLookup,omitempty"`
+	// KubeconfigSecret is the kubeconfig secret used for authenticating.
+	KubeconfigSecret SecretSelector `json:"kubeconfigSecret"`
+}
+
+// DefaultKubeControllerManagerAuthorizationKubeconfigSecretKey is the default key for
+// KubeControllerManagerAuthorization.KubeconfigSecret.
+const DefaultKubeControllerManagerAuthorizationKubeconfigSecretKey = "kubeconfig"
+
+// KubeControllerManagerAuthorization is configuration how the kube controller manager handles authorization
+// and / or authenticating requests.
+type KubeControllerManagerAuthorization struct {
+	// KubeconfigSecret is the kugbeconfig secret used for authorizing.
+	KubeconfigSecret SecretSelector `json:"kubeconfigSecret"`
+}
 
 // KubeControllerManagerStatus defines the observed state of KubeControllerManager
 type KubeControllerManagerStatus struct {

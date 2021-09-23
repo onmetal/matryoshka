@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
+
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 
 	"github.com/onmetal/controller-utils/clientutils"
@@ -46,41 +48,42 @@ type Resolver struct {
 
 func (r *Resolver) getRequests(kcm *matryoshkav1alpha1.KubeControllerManager) *clientutils.GetRequestSet {
 	s := clientutils.NewGetRequestSet()
-	s.Insert(
-		clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: kcm.Spec.KubernetesAPI.Kubeconfig.Secret.Name},
-			Object: &corev1.Secret{},
-		},
-		clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: kcm.Spec.ServiceAccount.PrivateKey.Secret.Name},
-			Object: &corev1.Secret{},
-		},
-	)
+	s.Insert(clientutils.GetRequest{
+		Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: kcm.Spec.Generic.KubeconfigSecret.Name},
+		Object: &corev1.Secret{},
+	})
 
-	if signing := kcm.Spec.Cluster.Signing; signing != nil {
+	if serviceAccount := kcm.Spec.ServiceAccountController; serviceAccount != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: signing.Secret.Name},
+			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: serviceAccount.PrivateKeySecret.Name},
+			Object: &corev1.Secret{},
+		})
+
+		if rootCA := serviceAccount.RootCertificateSecret; rootCA != nil {
+			s.Insert(clientutils.GetRequest{
+				Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: rootCA.Name},
+				Object: &corev1.Secret{},
+			})
+		}
+	}
+
+	if csrSigning := kcm.Spec.CSRSigningController; csrSigning != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: csrSigning.ClusterSigningSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthorizationKubeconfig; kubeconfig != nil {
+	if authN := kcm.Spec.Authentication; authN != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: kubeconfig.Secret.Name},
+			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: authN.KubeconfigSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthenticationKubeconfig; kubeconfig != nil {
+	if authZ := kcm.Spec.Authorization; authZ != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: kubeconfig.Secret.Name},
-			Object: &corev1.Secret{},
-		})
-	}
-
-	if rootCertificateAuthority := kcm.Spec.ServiceAccount.RootCertificateAuthority; rootCertificateAuthority != nil {
-		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: rootCertificateAuthority.Secret.Name},
+			Key:    client.ObjectKey{Namespace: kcm.Namespace, Name: authZ.KubeconfigSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
@@ -119,7 +122,7 @@ func (r *Resolver) Resolve(ctx context.Context, kcm *matryoshkav1alpha1.KubeCont
 	log.V(1).Info("Building deployment.")
 	deployment, err := r.deployment(ctx, s, kcm)
 	if err != nil {
-		return nil, fmt.Errorf("error building api server deployment: %w", err)
+		return nil, fmt.Errorf("error building deployment: %w", err)
 	}
 
 	log.V(2).Info("Updating deployment with checksums.")
@@ -152,11 +155,72 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 	return nil
 }
 
-func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *matryoshkav1alpha1.KubeControllerManager) (*appsv1.Deployment, error) {
-	selector := map[string]string{
-		"matryoshka.onmetal.de/app": fmt.Sprintf("kube-controller-manager-%s", kcm.Name),
+func (r *Resolver) controllerManagerContainer(_ context.Context, _ *memorystore.Store, kcm *matryoshkav1alpha1.KubeControllerManager) (*corev1.Container, error) {
+	container := &corev1.Container{
+		Name:         "kube-controller-manager",
+		Image:        fmt.Sprintf("k8s.gcr.io/kube-controller-manager:v%s", kcm.Spec.Version),
+		Command:      r.kubeControllerManagerCommand(kcm),
+		VolumeMounts: r.kubeControllerManagerVolumeMounts(kcm),
+		LivenessProbe: &corev1.Probe{
+			Handler: corev1.Handler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/healthz",
+					Port:   intstr.FromInt(10257),
+					Scheme: corev1.URISchemeHTTPS,
+				},
+			},
+			InitialDelaySeconds: 15,
+			TimeoutSeconds:      15,
+			PeriodSeconds:       10,
+			SuccessThreshold:    1,
+			FailureThreshold:    2,
+		},
 	}
-	labels := utils.MergeStringStringMaps(kcm.Spec.Labels, selector)
+
+	if err := common.ApplyContainerOverlay(container, &kcm.Spec.Overlay.Spec.ControllerManagerContainer); err != nil {
+		return nil, err
+	}
+
+	return container, nil
+}
+
+func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, kcm *matryoshkav1alpha1.KubeControllerManager) (*corev1.PodSpec, error) {
+	controllerManagerContainer, err := r.controllerManagerContainer(ctx, s, kcm)
+	if err != nil {
+		return nil, err
+	}
+
+	spec := &corev1.PodSpec{
+		Containers: []corev1.Container{
+			*controllerManagerContainer,
+		},
+		TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
+		Volumes:                       r.kubeControllerManagerVolumes(kcm),
+	}
+	if err := common.ApplyPodOverlay(spec, &kcm.Spec.Overlay.Spec.PodOverlay); err != nil {
+		return nil, err
+	}
+
+	return spec, nil
+}
+
+func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *matryoshkav1alpha1.KubeControllerManager) (*appsv1.Deployment, error) {
+	baseLabels := map[string]string{
+		"matryoshka.onmetal.de/app": fmt.Sprintf("kubecontrollermanager-%s", kcm.Name),
+	}
+	meta := kcm.Spec.Overlay.ObjectMeta
+	meta.Labels = utils.MergeStringStringMaps(meta.Labels, baseLabels)
+	selector := kcm.Spec.Selector
+	if selector == nil {
+		selector = &metav1.LabelSelector{
+			MatchLabels: baseLabels,
+		}
+	}
+
+	spec, err := r.deploymentPodSpec(ctx, s, kcm)
+	if err != nil {
+		return nil, err
+	}
 
 	deploy := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -166,49 +230,15 @@ func (r *Resolver) deployment(ctx context.Context, s *memorystore.Store, kcm *ma
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   kcm.Namespace,
 			Name:        kcm.Name,
-			Labels:      labels,
-			Annotations: kcm.Spec.Annotations,
+			Labels:      meta.Labels,
+			Annotations: meta.Annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(kcm.Spec.Replicas),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: selector,
-			},
+			Replicas: kcm.Spec.Replicas,
+			Selector: selector,
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: kcm.Spec.Annotations,
-					Labels:      labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:            "kube-controller-manager",
-							Image:           fmt.Sprintf("k8s.gcr.io/kube-controller-manager:v%s", kcm.Spec.Version),
-							ImagePullPolicy: kcm.Spec.ImagePullPolicy,
-							Resources:       kcm.Spec.Resources,
-							Command:         r.kubeControllerManagerCommand(kcm),
-							VolumeMounts:    r.kubeControllerManagerVolumeMounts(kcm),
-							LivenessProbe: &corev1.Probe{
-								Handler: corev1.Handler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/healthz",
-										Port:   intstr.FromInt(10257),
-										Scheme: corev1.URISchemeHTTPS,
-									},
-								},
-								InitialDelaySeconds: 15,
-								TimeoutSeconds:      15,
-								PeriodSeconds:       10,
-								SuccessThreshold:    1,
-								FailureThreshold:    2,
-							},
-						},
-					},
-					Affinity:                      kcm.Spec.Affinity,
-					Tolerations:                   kcm.Spec.Tolerations,
-					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
-					Volumes:                       r.kubeControllerManagerVolumes(kcm),
-				},
+				ObjectMeta: meta,
+				Spec:       *spec,
 			},
 		},
 	}
@@ -225,12 +255,19 @@ const (
 	// PathPrefix is the prefix of all kube controller manager volume path mounts.
 	PathPrefix = "/srv/kubernetes/"
 
-	// ServiceAccountName is the name used for service account volume name and path.
-	ServiceAccountName = "service-account"
-	// ServiceAccountVolumeName is the name of the service account volume
-	ServiceAccountVolumeName = VolumePrefix + ServiceAccountName
-	// ServiceAccountVolumePath is the path of the service account volume.
-	ServiceAccountVolumePath = PathPrefix + ServiceAccountName
+	// ServiceAccountPrivateKeyName is the name used for service account volume name and path.
+	ServiceAccountPrivateKeyName = "service-account-private-key"
+	// ServiceAccountPrivateKeyVolumeName is the name of the service account volume
+	ServiceAccountPrivateKeyVolumeName = VolumePrefix + ServiceAccountPrivateKeyName
+	// ServiceAccountPrivateKeyVolumePath is the path of the service account volume.
+	ServiceAccountPrivateKeyVolumePath = PathPrefix + ServiceAccountPrivateKeyName
+
+	// ServiceAccountRootCertificateName is the name used for the service account root ca volume and path.
+	ServiceAccountRootCertificateName = "service-account-root-ca"
+	// ServiceAccountRootCertificateVolumeName is the name of the service account root ca volume.
+	ServiceAccountRootCertificateVolumeName = VolumePrefix + ServiceAccountRootCertificateName
+	// ServiceAccountRootCertificateVolumePath is the path of the service account root ca volume.
+	ServiceAccountRootCertificateVolumePath = PathPrefix + ServiceAccountRootCertificateName
 
 	// KubeconfigName is the name used for kubeconfig volume name and path.
 	KubeconfigName = "kubeconfig"
@@ -253,19 +290,12 @@ const (
 	// AuthenticationKubeconfigVolumePath is the path of the authentication kubeconfig volume.
 	AuthenticationKubeconfigVolumePath = PathPrefix + AuthenticationKubeconfigName
 
-	// SigningName is the name used for the signing volume name and path.
-	SigningName = "signing"
-	// SigningVolumeName is the name of the signing volume.
-	SigningVolumeName = VolumePrefix + SigningName
-	// SigningVolumePath is the path of the signing volume.
-	SigningVolumePath = PathPrefix + SigningName
-
-	// ServiceAccountRootCertficateName is the name used for the service account root ca volume and path.
-	ServiceAccountRootCertficateName = "service-account-root-ca"
-	// ServiceAccountRootCertficateVolumeName is the name of the service account root ca volume.
-	ServiceAccountRootCertficateVolumeName = VolumePrefix + ServiceAccountRootCertficateName
-	// ServiceAccountRootCertficateVolumePath is the path of the service account root ca volume.
-	ServiceAccountRootCertficateVolumePath = PathPrefix + ServiceAccountRootCertficateName
+	// ClusterSigningName is the name used for the cluster signing volume name and path.
+	ClusterSigningName = "cluster-signing"
+	// ClusterSigningVolumeName is the name of the cluster signing volume.
+	ClusterSigningVolumeName = VolumePrefix + ClusterSigningName
+	// ClusterSigningVolumePath is the path of the cluster signing volume.
+	ClusterSigningVolumePath = PathPrefix + ClusterSigningName
 )
 
 func (r *Resolver) kubeControllerManagerCommand(kcm *matryoshkav1alpha1.KubeControllerManager) []string {
@@ -275,26 +305,50 @@ func (r *Resolver) kubeControllerManagerCommand(kcm *matryoshkav1alpha1.KubeCont
 		"--leader-elect=true",
 		"--v=2",
 
-		fmt.Sprintf("--cluster-name=%s", kcm.Spec.Cluster.Name),
-		fmt.Sprintf("--controllers=%s", strings.Join(kcm.Spec.Controllers.List, ",")),
-		fmt.Sprintf("--kubeconfig=%s/%s", KubeconfigVolumePath, utils.StringOrDefault(kcm.Spec.KubernetesAPI.Kubeconfig.Secret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerKubeconfigKey)),
-		fmt.Sprintf("--service-account-private-key-file=%s/%s", ServiceAccountVolumePath, utils.StringOrDefault(kcm.Spec.ServiceAccount.PrivateKey.Secret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountPrivateKeyKey)),
+		fmt.Sprintf("--cluster-name=%s", kcm.Spec.Shared.ClusterName),
+		fmt.Sprintf("--controllers=%s", strings.Join(kcm.Spec.Generic.Controllers, ",")),
+		fmt.Sprintf("--kubeconfig=%s/%s", KubeconfigVolumePath, utils.StringOrDefault(kcm.Spec.Generic.KubeconfigSecret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerGenericConfigurationKubeconfigKey)),
+		fmt.Sprintf("--use-service-account-credentials=%t", kcm.Spec.Shared.ControllerCredentials == matryoshkav1alpha1.KubeControllerManagerServiceAccountCredentials),
 	}
 
-	if signing := kcm.Spec.Cluster.Signing; signing != nil {
-		cmd = append(cmd, fmt.Sprintf("--cluster-signing-cert-file=%s/ca.crt", SigningVolumePath))
-		cmd = append(cmd, fmt.Sprintf("--cluster-signing-key-file=%s/tls.key", SigningVolumePath))
+	if serviceAccount := kcm.Spec.ServiceAccountController; serviceAccount != nil {
+		if privateKey := serviceAccount.PrivateKeySecret; privateKey != nil {
+			cmd = append(cmd, fmt.Sprintf("--service-account-private-key-file=%s/%s",
+				ServiceAccountPrivateKeyVolumePath,
+				utils.StringOrDefault(privateKey.Key, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountControllerConfigurationPrivateKeySecretKey),
+			))
+		}
+
+		if rootCA := serviceAccount.RootCertificateSecret; rootCA != nil {
+			cmd = append(cmd, fmt.Sprintf("--root-ca-file=%s/%s",
+				ServiceAccountRootCertificateVolumePath,
+				utils.StringOrDefault(rootCA.Key, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountControllerConfigurationRootCertificateSecretKey),
+			))
+		}
 	}
 
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthorizationKubeconfig; kubeconfig != nil {
-		cmd = append(cmd, fmt.Sprintf("--authorization-kubeconfig=%s/%s", AuthorizationKubeconfigVolumePath, utils.StringOrDefault(kubeconfig.Secret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigKey)))
-	}
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthenticationKubeconfig; kubeconfig != nil {
-		cmd = append(cmd, fmt.Sprintf("--authentication-kubeconfig=%s/%s", AuthenticationKubeconfigVolumePath, utils.StringOrDefault(kubeconfig.Secret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigKey)))
+	if signing := kcm.Spec.CSRSigningController; signing != nil {
+		if clusterSigning := signing.ClusterSigningSecret; clusterSigning != nil {
+			cmd = append(cmd, fmt.Sprintf("--cluster-signing-cert-file=%s/ca.crt", ClusterSigningVolumePath))
+			cmd = append(cmd, fmt.Sprintf("--cluster-signing-key-file=%s/tls.key", ClusterSigningVolumePath))
+		}
 	}
 
-	if rootCertificateAuthority := kcm.Spec.ServiceAccount.RootCertificateAuthority; rootCertificateAuthority != nil {
-		cmd = append(cmd, fmt.Sprintf("--root-ca-file=%s/%s", ServiceAccountRootCertficateVolumePath, utils.StringOrDefault(rootCertificateAuthority.Secret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountRootCertificateAuthorityKey)))
+	if authentication := kcm.Spec.Authentication; authentication != nil {
+		cmd = append(cmd,
+			fmt.Sprintf("--authentication-kubeconfig=%s/%s",
+				AuthenticationKubeconfigVolumePath,
+				utils.StringOrDefault(authentication.KubeconfigSecret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigSecretKey),
+			),
+			fmt.Sprintf("--authentication-skip-lookup=%t", authentication.SkipLookup),
+		)
+	}
+
+	if authorization := kcm.Spec.Authorization; authorization != nil {
+		cmd = append(cmd, fmt.Sprintf("--authorization-kubeconfig=%s/%s",
+			AuthorizationKubeconfigVolumePath,
+			utils.StringOrDefault(authorization.KubeconfigSecret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigSecretKey),
+		))
 	}
 
 	return cmd
@@ -306,37 +360,44 @@ func (r *Resolver) kubeControllerManagerVolumeMounts(kcm *matryoshkav1alpha1.Kub
 			Name:      KubeconfigVolumeName,
 			MountPath: KubeconfigVolumePath,
 		},
-		{
-			Name:      ServiceAccountVolumeName,
-			MountPath: ServiceAccountVolumePath,
-		},
 	}
 
-	if kcm.Spec.Cluster.Signing != nil {
-		mounts = append(mounts, corev1.VolumeMount{
-			Name:      SigningVolumeName,
-			MountPath: SigningVolumePath,
-		})
+	if serviceAccount := kcm.Spec.ServiceAccountController; serviceAccount != nil {
+		if privateKey := serviceAccount.PrivateKeySecret; privateKey != nil {
+			mounts = append(mounts, corev1.VolumeMount{
+				Name:      ServiceAccountPrivateKeyVolumeName,
+				MountPath: ServiceAccountPrivateKeyVolumePath,
+			})
+		}
+
+		if rootCA := serviceAccount.RootCertificateSecret; rootCA != nil {
+			mounts = append(mounts, corev1.VolumeMount{
+				Name:      ServiceAccountRootCertificateVolumeName,
+				MountPath: ServiceAccountRootCertificateVolumePath,
+			})
+		}
 	}
 
-	if kcm.Spec.KubernetesAPI.AuthorizationKubeconfig != nil {
-		mounts = append(mounts, corev1.VolumeMount{
-			Name:      AuthorizationKubeconfigVolumeName,
-			MountPath: AuthorizationKubeconfigVolumePath,
-		})
+	if signing := kcm.Spec.CSRSigningController; signing != nil {
+		if signing.ClusterSigningSecret != nil {
+			mounts = append(mounts, corev1.VolumeMount{
+				Name:      ClusterSigningVolumeName,
+				MountPath: ClusterSigningVolumePath,
+			})
+		}
 	}
 
-	if kcm.Spec.KubernetesAPI.AuthenticationKubeconfig != nil {
+	if authentication := kcm.Spec.Authentication; authentication != nil {
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      AuthenticationKubeconfigVolumeName,
 			MountPath: AuthenticationKubeconfigVolumePath,
 		})
 	}
 
-	if kcm.Spec.ServiceAccount.RootCertificateAuthority != nil {
+	if authorization := kcm.Spec.Authorization; authorization != nil {
 		mounts = append(mounts, corev1.VolumeMount{
-			Name:      ServiceAccountRootCertficateVolumeName,
-			MountPath: ServiceAccountRootCertficateVolumePath,
+			Name:      AuthorizationKubeconfigVolumeName,
+			MountPath: AuthorizationKubeconfigVolumePath,
 		})
 	}
 
@@ -349,59 +410,66 @@ func (r *Resolver) kubeControllerManagerVolumes(kcm *matryoshkav1alpha1.KubeCont
 			Name: KubeconfigVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: kcm.Spec.KubernetesAPI.Kubeconfig.Secret.Name,
-				},
-			},
-		},
-		{
-			Name: ServiceAccountVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: kcm.Spec.ServiceAccount.PrivateKey.Secret.Name,
+					SecretName: kcm.Spec.Generic.KubeconfigSecret.Name,
 				},
 			},
 		},
 	}
 
-	if signing := kcm.Spec.Cluster.Signing; signing != nil {
-		volumes = append(volumes, corev1.Volume{
-			Name: SigningVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: signing.Secret.Name,
+	if serviceAccount := kcm.Spec.ServiceAccountController; serviceAccount != nil {
+		if privateKey := serviceAccount.PrivateKeySecret; privateKey != nil {
+			volumes = append(volumes, corev1.Volume{
+				Name: ServiceAccountPrivateKeyVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: privateKey.Name,
+					},
 				},
-			},
-		})
+			})
+		}
+
+		if rootCA := serviceAccount.RootCertificateSecret; rootCA != nil {
+			volumes = append(volumes, corev1.Volume{
+				Name: ServiceAccountRootCertificateVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: rootCA.Name,
+					},
+				},
+			})
+		}
 	}
 
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthorizationKubeconfig; kubeconfig != nil {
-		volumes = append(volumes, corev1.Volume{
-			Name: AuthorizationKubeconfigVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: kubeconfig.Secret.Name,
+	if signing := kcm.Spec.CSRSigningController; signing != nil {
+		if clusterSigning := signing.ClusterSigningSecret; clusterSigning != nil {
+			volumes = append(volumes, corev1.Volume{
+				Name: ClusterSigningVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: clusterSigning.Name,
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
-	if kubeconfig := kcm.Spec.KubernetesAPI.AuthenticationKubeconfig; kubeconfig != nil {
+	if authentication := kcm.Spec.Authentication; authentication != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: AuthenticationKubeconfigVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: kubeconfig.Secret.Name,
+					SecretName: authentication.KubeconfigSecret.Name,
 				},
 			},
 		})
 	}
 
-	if rootCertificateAuthority := kcm.Spec.ServiceAccount.RootCertificateAuthority; rootCertificateAuthority != nil {
+	if authorization := kcm.Spec.Authorization; authorization != nil {
 		volumes = append(volumes, corev1.Volume{
-			Name: ServiceAccountRootCertficateVolumeName,
+			Name: AuthorizationKubeconfigVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: rootCertificateAuthority.Secret.Name,
+					SecretName: authorization.KubeconfigSecret.Name,
 				},
 			},
 		})

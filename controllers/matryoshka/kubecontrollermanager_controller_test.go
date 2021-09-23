@@ -23,8 +23,6 @@ import (
 
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubecontrollermanager"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -71,7 +69,16 @@ var _ = Describe("KubeControllerManagerController", func() {
 				},
 			},
 			corev1.Volume{
-				Name: kubecontrollermanager.ServiceAccountVolumeName,
+				Name: kubecontrollermanager.ServiceAccountPrivateKeyVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  certAndKeySecretName,
+						DefaultMode: pointer.Int32Ptr(420),
+					},
+				},
+			},
+			corev1.Volume{
+				Name: kubecontrollermanager.ServiceAccountRootCertificateVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
@@ -102,36 +109,35 @@ var _ = Describe("KubeControllerManagerController", func() {
 		By("inspecting the template containers")
 		Expect(template.Spec.Containers).To(HaveLen(1))
 		container := template.Spec.Containers[0]
-		Expect(container.Command).To(Equal([]string{
-			"/usr/local/bin/kube-controller-manager",
+		Expect(container.Command).NotTo(BeEmpty())
+		Expect(container.Command[0]).To(Equal("/usr/local/bin/kube-controller-manager"))
+		flags := container.Command[1:]
+		Expect(flags).To(ConsistOf(
 			"--bind-address=0.0.0.0",
 			"--leader-elect=true",
 			"--v=2",
 			"--cluster-name=my-cluster",
 			"--controllers=*,bootstrapsigner,tokencleaner",
-			fmt.Sprintf("--kubeconfig=%s/%s", kubecontrollermanager.KubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerKubeconfigKey),
-			fmt.Sprintf("--service-account-private-key-file=%s/%s", kubecontrollermanager.ServiceAccountVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountPrivateKeyKey),
-			fmt.Sprintf("--authorization-kubeconfig=%s/%s", kubecontrollermanager.AuthorizationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigKey),
-			fmt.Sprintf("--authentication-kubeconfig=%s/%s", kubecontrollermanager.AuthenticationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigKey),
-		}))
-		Expect(container.Resources).To(Equal(corev1.ResourceRequirements{
-			Requests: map[corev1.ResourceName]resource.Quantity{
-				"cpu":    resource.MustParse("200m"),
-				"memory": resource.MustParse("300Mi"),
-			},
-			Limits: map[corev1.ResourceName]resource.Quantity{
-				"cpu":    resource.MustParse("1200m"),
-				"memory": resource.MustParse("2000Mi"),
-			},
-		}))
+			"--use-service-account-credentials=true",
+			fmt.Sprintf("--kubeconfig=%s/%s", kubecontrollermanager.KubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerGenericConfigurationKubeconfigKey),
+			fmt.Sprintf("--service-account-private-key-file=%s/%s", kubecontrollermanager.ServiceAccountPrivateKeyVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountControllerConfigurationPrivateKeySecretKey),
+			fmt.Sprintf("--root-ca-file=%s/%s", kubecontrollermanager.ServiceAccountRootCertificateVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerServiceAccountControllerConfigurationRootCertificateSecretKey),
+			fmt.Sprintf("--authorization-kubeconfig=%s/%s", kubecontrollermanager.AuthorizationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigSecretKey),
+			fmt.Sprintf("--authentication-kubeconfig=%s/%s", kubecontrollermanager.AuthenticationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigSecretKey),
+			"--authentication-skip-lookup=true",
+		))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
 				Name:      kubecontrollermanager.KubeconfigVolumeName,
 				MountPath: kubecontrollermanager.KubeconfigVolumePath,
 			},
 			corev1.VolumeMount{
-				Name:      kubecontrollermanager.ServiceAccountVolumeName,
-				MountPath: kubecontrollermanager.ServiceAccountVolumePath,
+				Name:      kubecontrollermanager.ServiceAccountPrivateKeyVolumeName,
+				MountPath: kubecontrollermanager.ServiceAccountPrivateKeyVolumePath,
+			},
+			corev1.VolumeMount{
+				Name:      kubecontrollermanager.ServiceAccountRootCertificateVolumeName,
+				MountPath: kubecontrollermanager.ServiceAccountRootCertificateVolumePath,
 			},
 			corev1.VolumeMount{
 				Name:      kubecontrollermanager.AuthorizationKubeconfigVolumeName,

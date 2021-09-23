@@ -118,15 +118,15 @@ spec:
                 - servers
                 type: object
               overlay:
-                description: Overlay is the APIServerPodTemplateOverlay to use to
-                  scaffold the deployment.
+                description: Overlay is the KubeAPIServerPodTemplateOverlay to use
+                  to scaffold the deployment.
                 properties:
                   metadata:
                     description: ObjectMeta specifies additional object metadata to
                       set on the managed pods.
                     type: object
                   spec:
-                    description: Spec is the APIServerPodOverlay overlay specification
+                    description: Spec is the KubeAPIServerPodOverlay overlay specification
                       for the pod.
                     properties:
                       additionalContainers:

@@ -40,8 +40,8 @@ type KubeAPIServerSpec struct {
 	Version string `json:"version"`
 	// Selector specifies the label selector to discover managed pods.
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
-	// Overlay is the APIServerPodTemplateOverlay to use to scaffold the deployment.
-	Overlay APIServerPodTemplateOverlay `json:"overlay,omitempty"`
+	// Overlay is the KubeAPIServerPodTemplateOverlay to use to scaffold the deployment.
+	Overlay KubeAPIServerPodTemplateOverlay `json:"overlay,omitempty"`
 	// ETCD specifies the KubeAPIServerETCD connection settings.
 	ETCD KubeAPIServerETCD `json:"etcd"`
 	// Authentication specifies how users can authenticate to the api server.
@@ -52,16 +52,16 @@ type KubeAPIServerSpec struct {
 	ServiceAccount KubeAPIServerServiceAccount `json:"serviceAccount"`
 }
 
-// APIServerPodTemplateOverlay is the template overlay for pods.
-type APIServerPodTemplateOverlay struct {
+// KubeAPIServerPodTemplateOverlay is the template overlay for pods.
+type KubeAPIServerPodTemplateOverlay struct {
 	// ObjectMeta specifies additional object metadata to set on the managed pods.
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Spec is the APIServerPodOverlay overlay specification for the pod.
-	Spec APIServerPodOverlay `json:"spec,omitempty"`
+	// Spec is the KubeAPIServerPodOverlay overlay specification for the pod.
+	Spec KubeAPIServerPodOverlay `json:"spec,omitempty"`
 }
 
-// APIServerPodOverlay is the PodOverlay with additional ContainerOverlay containers.
-type APIServerPodOverlay struct {
+// KubeAPIServerPodOverlay is the PodOverlay with additional ContainerOverlay containers.
+type KubeAPIServerPodOverlay struct {
 	// PodOverlay is the base managed pod specification.
 	PodOverlay `json:",inline,omitempty"`
 	// APIServerContainer is the ContainerOverlay that hosts the api server.
@@ -110,6 +110,10 @@ type KubeAPIServerETCDKey struct {
 	Secret corev1.LocalObjectReference `json:"secret"`
 }
 
+// DefaultKubeAPIServerAuthenticationTokenSecretKey is the default key to look up for tokens when the key in
+// KubeAPIServerAuthentication is blank.
+const DefaultKubeAPIServerAuthenticationTokenSecretKey = "token.csv"
+
 // KubeAPIServerAuthentication specifies how users may authenticate to the api server.
 type KubeAPIServerAuthentication struct {
 	// BootstrapToken specifies whether bootstrap token authentication is enabled.
@@ -119,10 +123,6 @@ type KubeAPIServerAuthentication struct {
 	// TokenSecret specifies whether token authentication is enabled and where these tokens are located at.
 	TokenSecret *SecretSelector `json:"tokenSecret,omitempty"`
 }
-
-// DefaultKubeAPIServerTokenSecretKey is the default key to look up for tokens when the key in
-// KubeAPIServerAuthentication is blank.
-const DefaultKubeAPIServerTokenSecretKey = "token.csv"
 
 // KubeAPIServerSecureServing specifies where tls configuration for the api server is found.
 type KubeAPIServerSecureServing struct {

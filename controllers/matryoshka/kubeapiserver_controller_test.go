@@ -97,8 +97,10 @@ var _ = Describe("KubeAPIServerController", func() {
 		By("inspecting the template containers")
 		Expect(template.Spec.Containers).To(HaveLen(1))
 		container := template.Spec.Containers[0]
-		Expect(container.Command).To(Equal([]string{
-			"/usr/local/bin/kube-apiserver",
+		Expect(container.Command).NotTo(BeEmpty())
+		Expect(container.Command[0]).To(Equal("/usr/local/bin/kube-apiserver"))
+		flags := container.Command[1:]
+		Expect(flags).To(ConsistOf(
 			"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
 			"--allow-privileged=false",
 			"--authorization-mode=Node,RBAC",
@@ -116,8 +118,8 @@ var _ = Describe("KubeAPIServerController", func() {
 			fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", kubeapiserver.ServiceAccountSigningKeyVolumePath),
 			fmt.Sprintf("--tls-cert-file=%s/tls.crt", kubeapiserver.TLSVolumePath),
 			fmt.Sprintf("--tls-private-key-file=%s/tls.key", kubeapiserver.TLSVolumePath),
-			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey),
-		}))
+			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
+		))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{
 				Name:      kubeapiserver.ServiceAccountKeyVolumeName,

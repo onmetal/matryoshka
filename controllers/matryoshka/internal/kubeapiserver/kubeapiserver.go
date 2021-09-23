@@ -259,7 +259,7 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	}
 	if tokenSecret := server.Spec.Authentication.TokenSecret; tokenSecret != nil {
 		cmd = append(cmd,
-			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(tokenSecret.Key, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey)),
+			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(tokenSecret.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey)),
 		)
 	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
@@ -318,7 +318,7 @@ func ParseAuthTokens(in io.Reader) ([]AuthToken, error) {
 func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) ([]corev1.HTTPHeader, error) {
 	var headers []corev1.HTTPHeader
 	if token := server.Spec.Authentication.TokenSecret; token != nil && !server.Spec.Authentication.Anonymous {
-		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, *token, matryoshkav1alpha1.DefaultKubeAPIServerTokenSecretKey)
+		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, *token, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey)
 		if err != nil {
 			return nil, err
 		}

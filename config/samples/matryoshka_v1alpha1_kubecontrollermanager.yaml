@@ -10,7 +10,7 @@ spec:
       protocol: TCP
       targetPort: 443
   selector:
-    matryoshka.onmetal.de/app: kubeapiserver-kubeapiserver-sample
+    matryoshka.onmetal.de/app: kubeapiserver-apiserver-sample
 ---
 apiVersion: v1
 kind: Secret
@@ -50,32 +50,25 @@ metadata:
 spec:
   replicas: 1
   version: 1.22.1
-  resources:
-    requests:
-      cpu: 200m
-      memory: 300Mi
-    limits:
-      cpu: 1200m
-      memory: 2000Mi
-  cluster:
-    name: my-cluster
-  kubernetesAPI:
-    kubeconfig:
-      secret:
-        name: kcm-kubeconfig
-    authenticationKubeconfig:
-      secret:
-        name: kcm-kubeconfig
-    authorizationKubeconfig:
-      secret:
-        name: kcm-kubeconfig
-  controllers:
-    credentials: ServiceAccount
-    list:
-    - "*"
-    - "bootstrapsigner"
-    - "tokencleaner"
-  serviceAccount:
-    privateKey:
-      secret:
-        name: apiserver-cert-and-key
+  generic:
+    kubeconfigSecret:
+      name: kcm-kubeconfig
+    controllers:
+      - "*"
+      - "bootstrapsigner"
+      - "tokencleaner"
+  shared:
+    clusterName: my-cluster
+    controllerCredentials: ServiceAccount
+  authentication:
+    skipLookup: true
+    kubeconfigSecret:
+      name: kcm-kubeconfig
+  authorization:
+    kubeconfigSecret:
+      name: kcm-kubeconfig
+  serviceAccountController:
+    rootCertificateSecret:
+      name: apiserver-cert-and-key
+    privateKeySecret:
+      name: apiserver-cert-and-key

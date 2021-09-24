@@ -43,27 +43,27 @@ type PodOverlay struct {
 	AdditionalContainers []corev1.Container `json:"additionalContainers,omitempty"`
 	// DNSPolicy sets the DNS policy for the pod.
 	// Defaults to "ClusterFirst".
-	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
+	DNSPolicy *corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
 	// NodeSelector is a selector which must be true for the pod to fit on a node.
 	// Selector which must match a node's labels for the pod to be scheduled on that node.
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 	// ServiceAccountName is the name of the ServiceAccount to use to run this pod.
-	ServiceAccountName string `json:"serviceAccountName,omitempty"`
+	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
 	// AutomountServiceAccountToken indicates whether a service account token should be automatically mounted.
 	AutomountServiceAccountToken *bool `json:"automountServiceAccountToken,omitempty"`
 	// NodeName is a request to schedule this pod onto a specific node. If it is non-empty,
 	// the scheduler simply schedules this pod onto that node, assuming that it fits resource
 	// requirements.
-	NodeName string `json:"nodeName,omitempty"`
+	NodeName *string `json:"nodeName,omitempty"`
 	// Host networking requested for this pod. Use the host's network namespace.
 	// If this option is set, the ports that will be used must be specified.
-	HostNetwork bool `json:"hostNetwork,omitempty"`
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 	// Use the host's pid namespace.
 	// Optional: Default to false.
-	HostPID bool `json:"hostPID,omitempty"`
+	HostPID *bool `json:"hostPID,omitempty"`
 	// Use the host's ipc namespace.
 	// Optional: Default to false.
-	HostIPC bool `json:"hostIPC,omitempty"`
+	HostIPC *bool `json:"hostIPC,omitempty"`
 	// Share a single process namespace between all the containers in a pod.
 	// When this is set containers will be able to view and signal processes from other containers
 	// in the same pod, and the first process in each container will not be assigned PID 1.
@@ -76,22 +76,22 @@ type PodOverlay struct {
 	AdditionalImagePullSecrets []corev1.LocalObjectReference `json:"additionalImagePullSecrets,omitempty"`
 	// Specifies the hostname of the Pod
 	// If not specified, the pod's hostname will be set to a system-defined value.
-	Hostname string `json:"hostname,omitempty"`
+	Hostname *string `json:"hostname,omitempty"`
 	// If specified, the fully qualified Pod hostname will be "<hostname>.<subdomain>.<pod namespace>.svc.<cluster domain>".
 	// If not specified, the pod will not have a domain name at all.
-	Subdomain string `json:"subdomain,omitempty"`
+	Subdomain *string `json:"subdomain,omitempty"`
 	// If specified, the pod's scheduling constraints
 	Affinity *corev1.Affinity `json:"affinity,omitempty"`
 	// If specified, the pod will be dispatched by specified scheduler.
 	// If not specified, the pod will be dispatched by default scheduler.
-	SchedulerName string `json:"schedulerName,omitempty"`
+	SchedulerName *string `json:"schedulerName,omitempty"`
 	// If specified, the pod's tolerations.
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
 	// HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts
 	// file if specified. This is only valid for non-hostNetwork pods.
-	HostAliases []corev1.HostAlias `json:"hostAliases,omitempty"`
+	HostAliases *[]corev1.HostAlias `json:"hostAliases,omitempty"`
 	// PriorityClassName indicates the pod's priority.
-	PriorityClassName string `json:"priorityClassName,omitempty"`
+	PriorityClassName *string `json:"priorityClassName,omitempty"`
 	// Priority is the priority value.
 	Priority *int32 `json:"priority,omitempty"`
 	// DNSConfig Specifies the DNS parameters of a pod.
@@ -107,7 +107,7 @@ type PodOverlay struct {
 	// PreemptionPolicy is the Policy for preempting pods with lower priority.
 	PreemptionPolicy *corev1.PreemptionPolicy `json:"preemptionPolicy,omitempty"`
 	// TopologySpreadConstraints describes constraints of how a group of pods ought to spread across topology domains.
-	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
+	TopologySpreadConstraints *[]corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
 	// If true the pod's hostname will be configured as the pod's FQDN, rather than the leaf name (the default).
 	SetHostnameAsFQDN *bool `json:"setHostnameAsFQDN,omitempty"`
 }
@@ -122,13 +122,13 @@ type ContainerOverlay struct {
 	// AdditionalEnv specifies a list of additional env variables for the pod.
 	AdditionalEnv []corev1.EnvVar `json:"additionalEnv,omitempty"`
 	// Resources required by this container.
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// AdditionalVolumeMounts specifies additional volumes to mount into the container's filesystem.
 	AdditionalVolumeMounts []corev1.VolumeMount `json:"additionalVolumeMounts,omitempty"`
 	// AdditionalVolumeDevices is a list of additional block devices to be used by the container.
 	AdditionalVolumeDevices []corev1.VolumeDevice `json:"additionalVolumeDevices,omitempty"`
 	// ImagePullPolicy specifies the image pull policy.
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	ImagePullPolicy *corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	// SecurityContext defines the security options the container should be run with.
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
 }

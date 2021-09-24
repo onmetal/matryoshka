@@ -65,7 +65,11 @@ func (in *ContainerOverlay) DeepCopyInto(out *ContainerOverlay) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	in.Resources.DeepCopyInto(&out.Resources)
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.AdditionalVolumeMounts != nil {
 		in, out := &in.AdditionalVolumeMounts, &out.AdditionalVolumeMounts
 		*out = make([]v1.VolumeMount, len(*in))
@@ -77,6 +81,11 @@ func (in *ContainerOverlay) DeepCopyInto(out *ContainerOverlay) {
 		in, out := &in.AdditionalVolumeDevices, &out.AdditionalVolumeDevices
 		*out = make([]v1.VolumeDevice, len(*in))
 		copy(*out, *in)
+	}
+	if in.ImagePullPolicy != nil {
+		in, out := &in.ImagePullPolicy, &out.ImagePullPolicy
+		*out = new(v1.PullPolicy)
+		**out = **in
 	}
 	if in.SecurityContext != nil {
 		in, out := &in.SecurityContext, &out.SecurityContext
@@ -1024,15 +1033,49 @@ func (in *PodOverlay) DeepCopyInto(out *PodOverlay) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.DNSPolicy != nil {
+		in, out := &in.DNSPolicy, &out.DNSPolicy
+		*out = new(v1.DNSPolicy)
+		**out = **in
+	}
 	if in.NodeSelector != nil {
 		in, out := &in.NodeSelector, &out.NodeSelector
-		*out = make(map[string]string, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val
+		*out = new(map[string]string)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make(map[string]string, len(*in))
+			for key, val := range *in {
+				(*out)[key] = val
+			}
 		}
+	}
+	if in.ServiceAccountName != nil {
+		in, out := &in.ServiceAccountName, &out.ServiceAccountName
+		*out = new(string)
+		**out = **in
 	}
 	if in.AutomountServiceAccountToken != nil {
 		in, out := &in.AutomountServiceAccountToken, &out.AutomountServiceAccountToken
+		*out = new(bool)
+		**out = **in
+	}
+	if in.NodeName != nil {
+		in, out := &in.NodeName, &out.NodeName
+		*out = new(string)
+		**out = **in
+	}
+	if in.HostNetwork != nil {
+		in, out := &in.HostNetwork, &out.HostNetwork
+		*out = new(bool)
+		**out = **in
+	}
+	if in.HostPID != nil {
+		in, out := &in.HostPID, &out.HostPID
+		*out = new(bool)
+		**out = **in
+	}
+	if in.HostIPC != nil {
+		in, out := &in.HostIPC, &out.HostIPC
 		*out = new(bool)
 		**out = **in
 	}
@@ -1051,24 +1094,52 @@ func (in *PodOverlay) DeepCopyInto(out *PodOverlay) {
 		*out = make([]v1.LocalObjectReference, len(*in))
 		copy(*out, *in)
 	}
+	if in.Hostname != nil {
+		in, out := &in.Hostname, &out.Hostname
+		*out = new(string)
+		**out = **in
+	}
+	if in.Subdomain != nil {
+		in, out := &in.Subdomain, &out.Subdomain
+		*out = new(string)
+		**out = **in
+	}
 	if in.Affinity != nil {
 		in, out := &in.Affinity, &out.Affinity
 		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.SchedulerName != nil {
+		in, out := &in.SchedulerName, &out.SchedulerName
+		*out = new(string)
+		**out = **in
+	}
 	if in.Tolerations != nil {
 		in, out := &in.Tolerations, &out.Tolerations
-		*out = make([]v1.Toleration, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+		*out = new([]v1.Toleration)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]v1.Toleration, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
 		}
 	}
 	if in.HostAliases != nil {
 		in, out := &in.HostAliases, &out.HostAliases
-		*out = make([]v1.HostAlias, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+		*out = new([]v1.HostAlias)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]v1.HostAlias, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
 		}
+	}
+	if in.PriorityClassName != nil {
+		in, out := &in.PriorityClassName, &out.PriorityClassName
+		*out = new(string)
+		**out = **in
 	}
 	if in.Priority != nil {
 		in, out := &in.Priority, &out.Priority
@@ -1102,9 +1173,13 @@ func (in *PodOverlay) DeepCopyInto(out *PodOverlay) {
 	}
 	if in.TopologySpreadConstraints != nil {
 		in, out := &in.TopologySpreadConstraints, &out.TopologySpreadConstraints
-		*out = make([]v1.TopologySpreadConstraint, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+		*out = new([]v1.TopologySpreadConstraint)
+		if **in != nil {
+			in, out := *in, *out
+			*out = make([]v1.TopologySpreadConstraint, len(*in))
+			for i := range *in {
+				(*in)[i].DeepCopyInto(&(*out)[i])
+			}
 		}
 	}
 	if in.SetHostnameAsFQDN != nil {

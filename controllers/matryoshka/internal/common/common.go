@@ -16,7 +16,6 @@ package common
 
 import (
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,11 +27,17 @@ func ApplyContainerOverlay(container *corev1.Container, overlay *matryoshkav1alp
 	container.Ports = append(container.Ports, overlay.AdditionalPorts...)
 	container.EnvFrom = append(container.EnvFrom, overlay.AdditionalEnvFrom...)
 	container.Env = append(container.Env, overlay.AdditionalEnv...)
-	container.Resources = overlay.Resources
+	if overlay.Resources != nil {
+		container.Resources = *overlay.Resources
+	}
 	container.VolumeMounts = append(container.VolumeMounts, overlay.AdditionalVolumeMounts...)
 	container.VolumeDevices = append(container.VolumeDevices, overlay.AdditionalVolumeDevices...)
-	container.ImagePullPolicy = overlay.ImagePullPolicy
-	container.SecurityContext = overlay.SecurityContext
+	if overlay.ImagePullPolicy != nil {
+		container.ImagePullPolicy = *overlay.ImagePullPolicy
+	}
+	if overlay.SecurityContext != nil {
+		container.SecurityContext = overlay.SecurityContext
+	}
 	return nil
 }
 
@@ -44,30 +49,78 @@ func ApplyPodOverlay(spec *corev1.PodSpec, overlay *matryoshkav1alpha1.PodOverla
 	spec.Volumes = append(spec.Volumes, overlay.AdditionalVolumes...)
 	spec.InitContainers = append(spec.InitContainers, overlay.AdditionalInitContainers...)
 	spec.Containers = append(spec.Containers, overlay.AdditionalContainers...)
-	spec.DNSPolicy = overlay.DNSPolicy
-	spec.NodeSelector = utils.MergeStringStringMaps(spec.NodeSelector, overlay.NodeSelector)
-	spec.ServiceAccountName = overlay.ServiceAccountName
-	spec.AutomountServiceAccountToken = overlay.AutomountServiceAccountToken
-	spec.NodeName = overlay.NodeName
-	spec.HostNetwork = overlay.HostNetwork
-	spec.HostPID = overlay.HostPID
-	spec.HostIPC = overlay.HostIPC
-	spec.ShareProcessNamespace = overlay.ShareProcessNamespace
-	spec.SecurityContext = overlay.SecurityContext
-	spec.Hostname = overlay.Hostname
-	spec.Subdomain = overlay.Subdomain
-	spec.Affinity = overlay.Affinity
-	spec.SchedulerName = overlay.SchedulerName
-	spec.Tolerations = overlay.Tolerations
-	spec.HostAliases = overlay.HostAliases
-	spec.PriorityClassName = overlay.PriorityClassName
-	spec.Priority = overlay.Priority
-	spec.DNSConfig = overlay.DNSConfig
+	if overlay.DNSPolicy != nil {
+		spec.DNSPolicy = *overlay.DNSPolicy
+	}
+	if overlay.NodeSelector != nil {
+		spec.NodeSelector = *overlay.NodeSelector
+	}
+	if overlay.ServiceAccountName != nil {
+		spec.ServiceAccountName = *overlay.ServiceAccountName
+	}
+	if overlay.AutomountServiceAccountToken != nil {
+		spec.AutomountServiceAccountToken = overlay.AutomountServiceAccountToken
+	}
+	if overlay.NodeName != nil {
+		spec.NodeName = *overlay.NodeName
+	}
+	if overlay.HostNetwork != nil {
+		spec.HostNetwork = *overlay.HostNetwork
+	}
+	if overlay.HostPID != nil {
+		spec.HostPID = *overlay.HostPID
+	}
+	if overlay.HostIPC != nil {
+		spec.HostIPC = *overlay.HostIPC
+	}
+	if overlay.ShareProcessNamespace != nil {
+		spec.ShareProcessNamespace = overlay.ShareProcessNamespace
+	}
+	if overlay.SecurityContext != nil {
+		spec.SecurityContext = overlay.SecurityContext
+	}
+	if overlay.Hostname != nil {
+		spec.Hostname = *overlay.Hostname
+	}
+	if overlay.Subdomain != nil {
+		spec.Subdomain = *overlay.Subdomain
+	}
+	if overlay.Affinity != nil {
+		spec.Affinity = overlay.Affinity
+	}
+	if overlay.SchedulerName != nil {
+		spec.SchedulerName = *overlay.SchedulerName
+	}
+	if overlay.Tolerations != nil {
+		spec.Tolerations = *overlay.Tolerations
+	}
+	if overlay.HostAliases != nil {
+		spec.HostAliases = *overlay.HostAliases
+	}
+	if overlay.PriorityClassName != nil {
+		spec.PriorityClassName = *overlay.PriorityClassName
+	}
+	if overlay.Priority != nil {
+		spec.Priority = overlay.Priority
+	}
+	if overlay.DNSConfig != nil {
+		spec.DNSConfig = overlay.DNSConfig
+	}
 	spec.ReadinessGates = append(spec.ReadinessGates, overlay.AdditionalReadinessGates...)
-	spec.RuntimeClassName = overlay.RuntimeClassName
-	spec.EnableServiceLinks = overlay.EnableServiceLinks
-	spec.PreemptionPolicy = overlay.PreemptionPolicy
-	spec.TopologySpreadConstraints = overlay.TopologySpreadConstraints
-	spec.SetHostnameAsFQDN = overlay.SetHostnameAsFQDN
+	if overlay.RuntimeClassName != nil {
+		spec.RuntimeClassName = overlay.RuntimeClassName
+	}
+	if overlay.EnableServiceLinks != nil {
+		spec.EnableServiceLinks = overlay.EnableServiceLinks
+	}
+	if overlay.PreemptionPolicy != nil {
+		spec.PreemptionPolicy = overlay.PreemptionPolicy
+	}
+	if overlay.TopologySpreadConstraints != nil {
+		spec.TopologySpreadConstraints = *overlay.TopologySpreadConstraints
+	}
+	if overlay.SetHostnameAsFQDN != nil {
+		spec.SetHostnameAsFQDN = overlay.SetHostnameAsFQDN
+	}
 	return nil
 }

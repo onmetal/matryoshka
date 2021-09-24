@@ -13,6 +13,9 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
+  release:
+    types:
+      - published
 
 jobs:
   buildAndPush:

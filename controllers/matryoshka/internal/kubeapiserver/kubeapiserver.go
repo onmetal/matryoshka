@@ -270,7 +270,7 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	if etcdKey := server.Spec.ETCD.KeySecret; etcdKey != nil {
 		cmd = append(cmd,
 			fmt.Sprintf("--etcd-certfile=%s/tls.crt", ETCDKeyVolumePath),
-			fmt.Sprintf("--etcd-certfile=%s/tls.key", ETCDKeyVolumePath),
+			fmt.Sprintf("--etcd-keyfile=%s/tls.key", ETCDKeyVolumePath),
 		)
 	}
 

@@ -17,7 +17,6 @@ limitations under the License.
 package matryoshka
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -26,9 +25,7 @@ import (
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/clientcmd/api/latest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,35 +69,12 @@ func (r *KubeconfigReconciler) reconcileExists(ctx context.Context, log logr.Log
 }
 
 func (r *KubeconfigReconciler) reconcile(ctx context.Context, log logr.Logger, kc *matryoshkav1alpha1.Kubeconfig) (ctrl.Result, error) {
-	log.V(1).Info("Resolving kubeconfig")
-	config, err := r.resolver.Resolve(ctx, kc)
+	log.V(1).Info("Resolving kubeconfig manifests")
+	secret, err := r.resolver.Resolve(ctx, kc)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("could not resolve kubeconfig: %w", err)
 	}
 
-	log.V(1).Info("Encoding config")
-	var b bytes.Buffer
-	if err := latest.Codec.Encode(config, &b); err != nil {
-		return ctrl.Result{}, fmt.Errorf("error encoding config: %w", err)
-	}
-
-	log.V(1).Info("Writing secret")
-	secret := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: kc.Namespace,
-			Name:      kc.Spec.SecretName,
-		},
-		Data: map[string][]byte{
-			matryoshkav1alpha1.DefaultKubeconfigKey: b.Bytes(),
-		},
-	}
-	if err := ctrl.SetControllerReference(kc, secret, r.Scheme); err != nil {
-		return ctrl.Result{}, fmt.Errorf("error setting secret owner reference: %w", err)
-	}
 	if err := r.Patch(ctx, secret, client.Apply, client.FieldOwner(matryoshkav1alpha1.KubeconfigFieldManager)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("error applying secret: %w", err)
 	}

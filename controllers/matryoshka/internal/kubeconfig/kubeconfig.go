@@ -15,8 +15,14 @@
 package kubeconfig
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+
+	"github.com/go-logr/logr"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 
@@ -48,39 +54,39 @@ func (r *Resolver) getRequests(kubeconfig *matryoshkav1alpha1.Kubeconfig) *clien
 }
 
 func (r *Resolver) addKubeconfigClusterReferencesGetRequests(s *clientutils.GetRequestSet, namespace string, cluster *matryoshkav1alpha1.KubeconfigCluster) {
-	if certificateAuthority := cluster.CertificateAuthority; certificateAuthority != nil {
+	if caSecret := cluster.CertificateAuthoritySecret; caSecret != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: certificateAuthority.Secret.Name},
+			Key:    client.ObjectKey{Namespace: namespace, Name: caSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 }
 
 func (r *Resolver) addKubeconfigAuthInfoGetRequests(s *clientutils.GetRequestSet, namespace string, authInfo *matryoshkav1alpha1.KubeconfigAuthInfo) {
-	if clientCertificate := authInfo.ClientCertificate; clientCertificate != nil {
+	if clientCertSecret := authInfo.ClientCertificateSecret; clientCertSecret != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: clientCertificate.Secret.Name},
+			Key:    client.ObjectKey{Namespace: namespace, Name: clientCertSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if clientKey := authInfo.ClientKey; clientKey != nil {
+	if clientKeySecret := authInfo.ClientKeySecret; clientKeySecret != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: clientKey.Secret.Name},
+			Key:    client.ObjectKey{Namespace: namespace, Name: clientKeySecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if token := authInfo.Token; token != nil {
+	if tokenSecret := authInfo.TokenSecret; tokenSecret != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: token.Secret.Name},
+			Key:    client.ObjectKey{Namespace: namespace, Name: tokenSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
 
-	if password := authInfo.Password; password != nil {
+	if passwordSecret := authInfo.PasswordSecret; passwordSecret != nil {
 		s.Insert(clientutils.GetRequest{
-			Key:    client.ObjectKey{Namespace: namespace, Name: password.Secret.Name},
+			Key:    client.ObjectKey{Namespace: namespace, Name: passwordSecret.Name},
 			Object: &corev1.Secret{},
 		})
 	}
@@ -92,10 +98,8 @@ func (r *Resolver) ObjectReferences(kubeconfig *matryoshkav1alpha1.Kubeconfig) (
 	return clientutils.ObjectRefSetFromGetRequestSet(r.scheme, reqs)
 }
 
-// Resolve resolves a matryoshkav1alpha1.Kubeconfig to its required manifests.
-func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
-	log := ctrl.LoggerFrom(ctx)
-
+// resolveConfig resolves a matryoshkav1alpha1.Kubeconfig to a clientcmdapiv1.Config.
+func (r *Resolver) resolveConfig(ctx context.Context, log logr.Logger, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
 	reqs := r.getRequests(kubeconfig).List()
 	log.V(1).Info("Retrieving source objects.")
 	if err := clientutils.GetMultiple(ctx, r.client, reqs); err != nil {
@@ -113,13 +117,55 @@ func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.K
 		}
 	}
 
-	log.V(1).Info("Building kubeconfig.")
+	log.V(1).Info("Building client config.")
 	cfg, err := r.config(ctx, s, kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error resolving kubeconfig to config: %w", err)
 	}
 
 	return cfg, nil
+}
+
+// Resolve resolves a matryoshkav1alpha1.Kubeconfig to its required manifests.
+func (r *Resolver) Resolve(ctx context.Context, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*corev1.Secret, error) {
+	log := ctrl.LoggerFrom(ctx)
+
+	log.V(1).Info("Resolving client client config")
+	cfg, err := r.resolveConfig(ctx, log, kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	log.V(1).Info("Encoding config")
+	var b bytes.Buffer
+	if err := latest.Codec.Encode(cfg, &b); err != nil {
+		return nil, fmt.Errorf("error encoding config: %w", err)
+	}
+
+	dataKey := kubeconfig.Spec.KubeconfigKey
+	if dataKey == "" {
+		dataKey = matryoshkav1alpha1.DefaultKubeconfigKey
+	}
+
+	log.V(1).Info("Resolving secret")
+	secret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: kubeconfig.Namespace,
+			Name:      kubeconfig.Spec.SecretName,
+		},
+		Data: map[string][]byte{
+			dataKey: b.Bytes(),
+		},
+	}
+
+	if err := ctrl.SetControllerReference(kubeconfig, secret, r.scheme); err != nil {
+		return nil, fmt.Errorf("error setting secret owner reference: %w", err)
+	}
+	return secret, nil
 }
 
 func (r *Resolver) config(ctx context.Context, s *memorystore.Store, kubeconfig *matryoshkav1alpha1.Kubeconfig) (*clientcmdapiv1.Config, error) {
@@ -144,13 +190,13 @@ func (r *Resolver) config(ctx context.Context, s *memorystore.Store, kubeconfig 
 	}
 
 	contexts := make([]clientcmdapiv1.NamedContext, 0, len(kubeconfig.Spec.Contexts))
-	for _, context := range kubeconfig.Spec.Contexts {
+	for _, kubeconfigCtx := range kubeconfig.Spec.Contexts {
 		contexts = append(contexts, clientcmdapiv1.NamedContext{
-			Name: context.Name,
+			Name: kubeconfigCtx.Name,
 			Context: clientcmdapiv1.Context{
-				Cluster:   context.Context.Cluster,
-				AuthInfo:  context.Context.AuthInfo,
-				Namespace: context.Context.Namespace,
+				Cluster:   kubeconfigCtx.Context.Cluster,
+				AuthInfo:  kubeconfigCtx.Context.AuthInfo,
+				Namespace: kubeconfigCtx.Context.Namespace,
 			},
 		})
 	}
@@ -170,30 +216,30 @@ func (r *Resolver) resolveAuthInfo(
 	authInfo *matryoshkav1alpha1.KubeconfigAuthInfo,
 ) (*clientcmdapiv1.AuthInfo, error) {
 	var clientCertificateData []byte
-	if clientCertificate := authInfo.ClientCertificate; clientCertificate != nil {
+	if clientCertSecret := authInfo.ClientCertificateSecret; clientCertSecret != nil {
 		var err error
-		clientCertificateData, err = utils.GetSecretSelector(ctx, s, namespace, *clientCertificate.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientCertificateKey)
+		clientCertificateData, err = utils.GetSecretSelector(ctx, s, namespace, *clientCertSecret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientCertificateSecretKey)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	var clientKeyData []byte
-	if clientKey := authInfo.ClientKey; clientKey != nil {
+	if clientKeySecret := authInfo.ClientKeySecret; clientKeySecret != nil {
 		var err error
-		clientKeyData, err = utils.GetSecretSelector(ctx, s, namespace, *clientKey.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientKeyKey)
+		clientKeyData, err = utils.GetSecretSelector(ctx, s, namespace, *clientKeySecret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoClientKeySecretKey)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	var token string
-	if tok := authInfo.Token; tok != nil {
+	if tokenSecret := authInfo.TokenSecret; tokenSecret != nil {
 		var (
 			tokenData []byte
 			err       error
 		)
-		tokenData, err = utils.GetSecretSelector(ctx, s, namespace, *tok.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoTokenKey)
+		tokenData, err = utils.GetSecretSelector(ctx, s, namespace, *tokenSecret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoTokenSecretKey)
 		if err != nil {
 			return nil, err
 		}
@@ -202,12 +248,12 @@ func (r *Resolver) resolveAuthInfo(
 	}
 
 	var password string
-	if pwd := authInfo.Password; pwd != nil {
+	if passwordSecret := authInfo.PasswordSecret; passwordSecret != nil {
 		var (
 			passwordData []byte
 			err          error
 		)
-		passwordData, err = utils.GetSecretSelector(ctx, s, namespace, *pwd.Secret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoPasswordKey)
+		passwordData, err = utils.GetSecretSelector(ctx, s, namespace, *passwordSecret, matryoshkav1alpha1.DefaultKubeconfigAuthInfoPasswordSecretKey)
 		if err != nil {
 			return nil, err
 		}
@@ -227,10 +273,10 @@ func (r *Resolver) resolveAuthInfo(
 }
 
 func (r *Resolver) resolveCluster(ctx context.Context, s *memorystore.Store, namespace string, cluster *matryoshkav1alpha1.KubeconfigCluster) (*clientcmdapiv1.Cluster, error) {
-	var certificateAuthorityData []byte
-	if certificateAuthority := cluster.CertificateAuthority; certificateAuthority != nil {
+	var caSecretData []byte
+	if caSecret := cluster.CertificateAuthoritySecret; caSecret != nil {
 		var err error
-		certificateAuthorityData, err = utils.GetSecretSelector(ctx, s, namespace, *certificateAuthority.Secret, matryoshkav1alpha1.DefaultKubeconfigClusterCertificateAuthorityKey)
+		caSecretData, err = utils.GetSecretSelector(ctx, s, namespace, *caSecret, matryoshkav1alpha1.DefaultKubeconfigClusterCertificateAuthoritySecretKey)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +286,7 @@ func (r *Resolver) resolveCluster(ctx context.Context, s *memorystore.Store, nam
 		Server:                   cluster.Server,
 		TLSServerName:            cluster.TLSServerName,
 		InsecureSkipTLSVerify:    cluster.InsecureSkipTLSVerify,
-		CertificateAuthorityData: certificateAuthorityData,
+		CertificateAuthorityData: caSecretData,
 		ProxyURL:                 cluster.ProxyURL,
 	}, nil
 }

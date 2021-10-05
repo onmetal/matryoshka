@@ -39,9 +39,8 @@ spec:
   users:
     - name: admin
       user:
-        token:
-          secret:
-            name: kcm-token
+        tokenSecret:
+          name: kcm-token
 ---
 apiVersion: matryoshka.onmetal.de/v1alpha1
 kind: KubeControllerManager

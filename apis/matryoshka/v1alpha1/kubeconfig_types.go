@@ -30,7 +30,12 @@ const DefaultKubeconfigKey = "kubeconfig"
 
 // KubeconfigSpec defines the desired state of Kubeconfig
 type KubeconfigSpec struct {
+	// SecretName is the name of the secret to create for the Kubeconfig.
 	SecretName string `json:"secretName"`
+
+	// KubeconfigKey is the Secret.Data key to write the kubeconfig into.
+	// If left empty, DefaultKubeconfigKey will be used.
+	KubeconfigKey string `json:"kubeconfigKey,omitempty"`
 
 	Clusters       []KubeconfigNamedCluster  `json:"clusters"`
 	AuthInfos      []KubeconfigNamedAuthInfo `json:"users"`
@@ -40,7 +45,9 @@ type KubeconfigSpec struct {
 
 // KubeconfigNamedCluster is a named KubeconfigCluster.
 type KubeconfigNamedCluster struct {
-	Name    string            `json:"name"`
+	// Name is the name of the KubeconfigCluster.
+	Name string `json:"name"`
+	// Cluster is a KubeconfigCluster.
 	Cluster KubeconfigCluster `json:"cluster"`
 }
 
@@ -48,40 +55,36 @@ type KubeconfigNamedCluster struct {
 type KubeconfigCluster struct {
 	// Server is the server's address.
 	Server string `json:"server"`
-	// TLSServer name is the server's TLS name.
+	// TLSServerName name is the server's TLS name.
 	TLSServerName string `json:"tlsServerName,omitempty"`
 	// InsecureSkipTLSVerify may be used to disable https ca certificate validation.
 	InsecureSkipTLSVerify bool `json:"insecureSkipTLSVerify,omitempty"`
-	// CertificateAuthority is the ca to use for connecting to the server.
-	CertificateAuthority *KubeconfigClusterCertificateAuthority `json:"certificateAuthority,omitempty"`
+	// CertificateAuthoritySecret is the ca to use for connecting to the server.
+	CertificateAuthoritySecret *SecretSelector `json:"certificateAuthoritySecret,omitempty"`
 	// ProxyURL is the proxy url to use to connect to the server.
 	ProxyURL string `json:"proxyURL,omitempty"`
 }
 
-// DefaultKubeconfigClusterCertificateAuthorityKey is the default key to look up for secrets referenced by
-// KubeconfigClusterCertificateAuthority.
-const DefaultKubeconfigClusterCertificateAuthorityKey = "ca.crt"
-
-// KubeconfigClusterCertificateAuthority references a secret that contains the kubeconfig cluster ca.
-// If key is unset, DefaultKubeconfigClusterCertificateAuthorityKey will be used as default.
-type KubeconfigClusterCertificateAuthority struct {
-	Secret *SecretSelector `json:"secret,omitempty"`
-}
+// DefaultKubeconfigClusterCertificateAuthoritySecretKey is the default key to look up for secrets referenced by
+// KubeconfigCluster.CertificateAuthoritySecret.
+const DefaultKubeconfigClusterCertificateAuthoritySecretKey = "ca.crt"
 
 // KubeconfigNamedAuthInfo is a named KubeconfigAuthInfo.
 type KubeconfigNamedAuthInfo struct {
-	Name     string             `json:"name"`
+	// Name is the name of the KubeconfigAuthInfo.
+	Name string `json:"name"`
+	// AuthInfo is a KubeconfigAuthInfo.
 	AuthInfo KubeconfigAuthInfo `json:"user"`
 }
 
 // KubeconfigAuthInfo is information how to authenticate to the cluster.
 type KubeconfigAuthInfo struct {
-	// ClientCertificate references a client certificate to present to the server.
-	ClientCertificate *KubeconfigAuthInfoClientCertificate `json:"clientCertificate,omitempty"`
-	// ClientKey references a client key to present to the server.
-	ClientKey *KubeconfigAuthInfoClientKey `json:"clientKey,omitempty"`
-	// Token references a token to present to the server.
-	Token *KubeconfigAuthInfoToken `json:"token,omitempty"`
+	// ClientCertificateSecret references a client certificate to present to the server.
+	ClientCertificateSecret *SecretSelector `json:"clientCertificateSecret,omitempty"`
+	// ClientKeySecret references a client key to present to the server.
+	ClientKeySecret *SecretSelector `json:"clientKeySecret,omitempty"`
+	// TokenSecret references a token to present to the server.
+	TokenSecret *SecretSelector `json:"tokenSecret,omitempty"`
 	// Impersonate sets the user to impersonate.
 	Impersonate string `json:"as,omitempty"`
 	// ImpersonateGroups sets the groups to impersonate.
@@ -89,44 +92,21 @@ type KubeconfigAuthInfo struct {
 	// Username sets the username to use.
 	Username string `json:"username,omitempty"`
 	// Password references a password.
-	Password *KubeconfigAuthInfoPassword `json:"password,omitempty"`
+	PasswordSecret *SecretSelector `json:"passwordSecret,omitempty"`
 }
 
-// DefaultKubeconfigAuthInfoClientKeyKey is the default key for KubeconfigAuthInfoClientKey.
-const DefaultKubeconfigAuthInfoClientKeyKey = "tls.key"
+// DefaultKubeconfigAuthInfoClientKeySecretKey is the default key for KubeconfigAuthInfo.ClientKeySecret.
+const DefaultKubeconfigAuthInfoClientKeySecretKey = "tls.key"
 
-// KubeconfigAuthInfoClientKey references an entity containing the client key used for authentication.
-// If key is unset, DefaultKubeconfigAuthInfoClientKeyKey will be used as default.
-type KubeconfigAuthInfoClientKey struct {
-	Secret *SecretSelector `json:"secret,omitempty"`
-}
+// DefaultKubeconfigAuthInfoClientCertificateSecretKey is the default key to use for
+// KubeconfigAuthInfo.ClientCertificateSecret.
+const DefaultKubeconfigAuthInfoClientCertificateSecretKey = "tls.crt"
 
-// DefaultKubeconfigAuthInfoClientCertificateKey is the default key to use for KubeconfigAuthInfoClientCertificate.
-const DefaultKubeconfigAuthInfoClientCertificateKey = "tls.crt"
+// DefaultKubeconfigAuthInfoTokenSecretKey is the default key for KubeconfigAuthInfo.TokenSecret.
+const DefaultKubeconfigAuthInfoTokenSecretKey = "token"
 
-// KubeconfigAuthInfoClientCertificate references an entity containing the client certificate used for authentication.
-// If key is unset, DefaultKubeconfigAuthInfoClientCertificateKey will be used as default.
-type KubeconfigAuthInfoClientCertificate struct {
-	Secret *SecretSelector `json:"secret,omitempty"`
-}
-
-// DefaultKubeconfigAuthInfoTokenKey is the default key for KubeconfigAuthInfoToken.
-const DefaultKubeconfigAuthInfoTokenKey = "token"
-
-// KubeconfigAuthInfoToken references an entity containing a token used for authentication.
-// If key is unset, DefaultKubeconfigAuthInfoTokenKey will be used as default.
-type KubeconfigAuthInfoToken struct {
-	Secret *SecretSelector `json:"secret,omitempty"`
-}
-
-// DefaultKubeconfigAuthInfoPasswordKey is the default key for KubeconfigAuthInfoPassword.
-const DefaultKubeconfigAuthInfoPasswordKey = "password"
-
-// KubeconfigAuthInfoPassword references an entity containing a password used for authentication.
-// If key is unset, DefaultKubeconfigAuthInfoPasswordKey will be used as default.
-type KubeconfigAuthInfoPassword struct {
-	Secret *SecretSelector `json:"secret,omitempty"`
-}
+// DefaultKubeconfigAuthInfoPasswordSecretKey is the default key for KubeconfigAuthInfo.PasswordSecret.
+const DefaultKubeconfigAuthInfoPasswordSecretKey = "password"
 
 // KubeconfigNamedContext is a named KubeconfigContext.
 type KubeconfigNamedContext struct {

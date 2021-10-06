@@ -19,6 +19,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 
 	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubecontrollermanager"
@@ -52,10 +55,20 @@ var _ = Describe("KubeControllerManagerController", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "kubecontrollermanager-sample"}, deployment)
 		}, 3*time.Second).Should(Succeed())
 
+		By("inspecting the deployment")
+		Expect(deployment.Spec.Selector).To(Equal(&metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"matryoshka.onmetal.de/app": "kubecontrollermanager-kubecontrollermanager-sample",
+			},
+		}))
+
 		By("inspecting the deployment template")
 		template := deployment.Spec.Template
 		Expect(template.Labels).NotTo(BeEmpty())
-		Expect(deployment.Spec.Selector.MatchLabels).To(Equal(template.Labels))
+		Expect(template.Labels).To(Equal(utils.MergeStringStringMaps(
+			deployment.Spec.Selector.MatchLabels,
+			map[string]string{"foo": "bar"},
+		)))
 
 		By("inspecting the volumes")
 		Expect(template.Spec.Volumes).To(ConsistOf(

@@ -133,7 +133,7 @@ func ComputeMountableChecksum(secrets []corev1.Secret, configMaps []corev1.Confi
 func MergeStringStringMaps(ms ...map[string]string) map[string]string {
 	var res map[string]string
 	for _, m := range ms {
-		if m != nil {
+		if m != nil && res == nil {
 			res = make(map[string]string)
 		}
 		for k, v := range m {

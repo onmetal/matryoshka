@@ -71,3 +71,7 @@ spec:
       name: apiserver-cert-and-key
     privateKeySecret:
       name: apiserver-cert-and-key
+  overlay:
+    metadata:
+      labels:
+        foo: bar

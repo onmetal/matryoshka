@@ -164,3 +164,7 @@ spec:
     bootstrapToken: true
     tokenSecret:
       name: apiserver-token-sample
+  overlay:
+    metadata:
+      labels:
+        foo: bar

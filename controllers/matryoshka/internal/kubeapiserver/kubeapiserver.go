@@ -345,11 +345,6 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 }
 
 func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer, path string) (*corev1.Probe, error) {
-	scheme := corev1.URISchemeHTTP
-	if server.Spec.SecureServing != nil {
-		scheme = corev1.URISchemeHTTPS
-	}
-
 	headers, err := r.probeHTTPHeaders(ctx, s, server)
 	if err != nil {
 		return nil, fmt.Errorf("error getting probe http headers: %w", err)
@@ -358,7 +353,7 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 	return &corev1.Probe{
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Scheme:      scheme,
+				Scheme:      corev1.URISchemeHTTPS,
 				Path:        path,
 				Port:        intstr.FromInt(443),
 				HTTPHeaders: headers,

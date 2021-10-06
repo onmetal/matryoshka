@@ -110,9 +110,14 @@ type KubeAPIServerETCDKey struct {
 	Secret corev1.LocalObjectReference `json:"secret"`
 }
 
-// DefaultKubeAPIServerAuthenticationTokenSecretKey is the default key to look up for tokens when the key in
-// KubeAPIServerAuthentication is blank.
-const DefaultKubeAPIServerAuthenticationTokenSecretKey = "token.csv"
+const (
+	// DefaultKubeAPIServerAuthenticationTokenSecretKey is the default key to look up for tokens when the key in
+	// KubeAPIServerAuthentication is blank.
+	DefaultKubeAPIServerAuthenticationTokenSecretKey = "token.csv"
+	// DefaultKubeAPIServerAuthenticationClientCertificateSecretKey is the default key to look up for client
+	// certificates when the key in KubeAPIServerAuthentication.ClientCertificateSecret is blank.
+	DefaultKubeAPIServerAuthenticationClientCertificateSecretKey = "ca.crt"
+)
 
 // KubeAPIServerAuthentication specifies how users may authenticate to the api server.
 type KubeAPIServerAuthentication struct {
@@ -122,6 +127,10 @@ type KubeAPIServerAuthentication struct {
 	Anonymous bool `json:"anonymous,omitempty"`
 	// TokenSecret specifies whether token authentication is enabled and where these tokens are located at.
 	TokenSecret *SecretSelector `json:"tokenSecret,omitempty"`
+	// ClientCertificateSecret makes any request presenting a client certificate signed by one of the authorities in
+	// the client-ca-file to be authenticated with an identity corresponding to the CommonName of the
+	// client certificate.
+	ClientCertificateSecret *SecretSelector `json:"clientCertificateSecret,omitempty"`
 }
 
 // KubeAPIServerSecureServing specifies where tls configuration for the api server is found.

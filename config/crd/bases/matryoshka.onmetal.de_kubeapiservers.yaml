@@ -64,6 +64,21 @@ spec:
                     description: BootstrapToken specifies whether bootstrap token
                       authentication is enabled.
                     type: boolean
+                  clientCertificateSecret:
+                    description: ClientCertificateSecret makes any request presenting
+                      a client certificate signed by one of the authorities in the
+                      client-ca-file to be authenticated with an identity corresponding
+                      to the CommonName of the client certificate.
+                    properties:
+                      key:
+                        description: Key is the key to look up in the config map data.
+                          Some types use a default if this value is unset.
+                        type: string
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
                   tokenSecret:
                     description: TokenSecret specifies whether token authentication
                       is enabled and where these tokens are located at.

@@ -74,6 +74,13 @@ const (
 	// TokenVolumePath is the path of the token volume.
 	TokenVolumePath = PathPrefix + TokenName
 
+	// ClientCAName is the name used for the client ca volume name and path.
+	ClientCAName = "client-ca"
+	// ClientCAVolumeName is the name of the client ca volume.
+	ClientCAVolumeName = VolumePrefix + ClientCAName
+	// ClientCAVolumePath is the path of the client ca volume.
+	ClientCAVolumePath = PathPrefix + ClientCAName
+
 	// ETCDCAName is the name used for the etcd ca volume name and path.
 	ETCDCAName = "etcd-ca"
 	// ETCDCAVolumeName is the name of the etcd ca volume.
@@ -126,6 +133,12 @@ func (r *Resolver) getRequests(server *matryoshkav1alpha1.KubeAPIServer) *client
 			Object: &corev1.Secret{},
 		})
 	}
+	if clientCA := server.Spec.Authentication.ClientCertificateSecret; clientCA != nil {
+		s.Insert(clientutils.GetRequest{
+			Key:    client.ObjectKey{Namespace: server.Namespace, Name: clientCA.Name},
+			Object: &corev1.Secret{},
+		})
+	}
 
 	if tls := server.Spec.SecureServing; tls != nil {
 		s.Insert(clientutils.GetRequest{
@@ -173,6 +186,14 @@ func (r *Resolver) apiServerVolumes(server *matryoshkav1alpha1.KubeAPIServer) []
 			},
 		})
 	}
+	if clientCA := server.Spec.Authentication.ClientCertificateSecret; clientCA != nil {
+		volumes = append(volumes, corev1.Volume{
+			Name: ClientCAVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{SecretName: clientCA.Name},
+			},
+		})
+	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
 		volumes = append(volumes, corev1.Volume{
 			Name: ETCDCAVolumeName,
@@ -212,6 +233,12 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServe
 		mounts = append(mounts, corev1.VolumeMount{
 			Name:      TokenVolumeName,
 			MountPath: TokenVolumePath,
+		})
+	}
+	if clientCA := server.Spec.Authentication.ClientCertificateSecret; clientCA != nil {
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      ClientCAVolumeName,
+			MountPath: ClientCAVolumePath,
 		})
 	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {
@@ -260,6 +287,11 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	if tokenSecret := server.Spec.Authentication.TokenSecret; tokenSecret != nil {
 		cmd = append(cmd,
 			fmt.Sprintf("--token-auth-file=%s/%s", TokenVolumePath, utils.StringOrDefault(tokenSecret.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey)),
+		)
+	}
+	if clientCA := server.Spec.Authentication.ClientCertificateSecret; clientCA != nil {
+		cmd = append(cmd,
+			fmt.Sprintf("--client-ca-file=%s/%s", ClientCAVolumePath, utils.StringOrDefault(clientCA.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationClientCertificateSecretKey)),
 		)
 	}
 	if etcdCA := server.Spec.ETCD.CertificateAuthoritySecret; etcdCA != nil {

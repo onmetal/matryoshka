@@ -6,7 +6,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.6.0
 	github.com/google/addlicense v1.0.0
-	github.com/onmetal/controller-utils v0.1.4
+	github.com/onmetal/controller-utils v0.2.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
 	golang.org/x/sys v0.0.0-20210921065528-437939a70204 // indirect

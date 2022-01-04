@@ -19,20 +19,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubecontrollermanager"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubecontrollermanager"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 )
 
 var _ = Describe("KubeControllerManagerController", func() {
@@ -162,7 +160,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 			},
 		))
 		Expect(container.LivenessProbe).To(Equal(&corev1.Probe{
-			Handler: corev1.Handler{
+			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/healthz",
 					Port:   intstr.FromInt(10257),

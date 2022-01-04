@@ -23,13 +23,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
-
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
-
-	"github.com/onmetal/controller-utils/clientutils"
-	"github.com/onmetal/controller-utils/memorystore"
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +31,12 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/onmetal/controller-utils/clientutils"
+	"github.com/onmetal/controller-utils/memorystore"
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 )
 
 const (
@@ -383,7 +382,7 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 	}
 
 	return &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme:      corev1.URISchemeHTTPS,
 				Path:        path,

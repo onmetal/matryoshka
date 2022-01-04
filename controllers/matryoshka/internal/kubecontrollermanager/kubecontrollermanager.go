@@ -19,25 +19,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
-
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
-
-	"github.com/onmetal/controller-utils/clientutils"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
-
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	"github.com/onmetal/controller-utils/memorystore"
-
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/onmetal/controller-utils/clientutils"
+	"github.com/onmetal/controller-utils/memorystore"
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/common"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 )
 
 // Resolver resolves a matryoshkav1alpha1.KubeControllerManager to its required manifests.
@@ -162,7 +157,7 @@ func (r *Resolver) controllerManagerContainer(_ context.Context, _ *memorystore.
 		Command:      r.kubeControllerManagerCommand(kcm),
 		VolumeMounts: r.kubeControllerManagerVolumeMounts(kcm),
 		LivenessProbe: &corev1.Probe{
-			Handler: corev1.Handler{
+			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/healthz",
 					Port:   intstr.FromInt(10257),

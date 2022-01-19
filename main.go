@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -31,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/onmetal/controller-utils/cmdutils/switches"
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	matryoshkacontrollers "github.com/onmetal/matryoshka/controllers/matryoshka"
 	//+kubebuilder:scaffold:imports
@@ -39,6 +41,10 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	kubeconfigController            = "kubeconfig"
+	kubeAPIServerController         = "kubeapiserver"
+	kubeControllerManagerController = "kubecontrollermanager"
 )
 
 func init() {
@@ -57,6 +63,12 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+
+	controllers := switches.New(
+		kubeconfigController, kubeAPIServerController, kubeControllerManagerController,
+	)
+	flag.Var(controllers, "controllers", fmt.Sprintf("Controllers to enable. All controllers: %v", controllers.All()))
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -78,26 +90,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&matryoshkacontrollers.KubeconfigReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Kubeconfig")
-		os.Exit(1)
+	if controllers.Enabled(kubeconfigController) {
+		if err = (&matryoshkacontrollers.KubeconfigReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Kubeconfig")
+			os.Exit(1)
+		}
 	}
-	if err = (&matryoshkacontrollers.KubeAPIServerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KubeAPIServer")
-		os.Exit(1)
+	if controllers.Enabled(kubeAPIServerController) {
+		if err = (&matryoshkacontrollers.KubeAPIServerReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KubeAPIServer")
+			os.Exit(1)
+		}
 	}
-	if err = (&matryoshkacontrollers.KubeControllerManagerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "KubeControllerManager")
-		os.Exit(1)
+	if controllers.Enabled(kubeControllerManagerController) {
+		if err = (&matryoshkacontrollers.KubeControllerManagerReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KubeControllerManager")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 

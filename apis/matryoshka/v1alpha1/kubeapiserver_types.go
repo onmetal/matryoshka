@@ -50,6 +50,7 @@ type KubeAPIServerSpec struct {
 	SecureServing *KubeAPIServerSecureServing `json:"secureServing,omitempty"`
 	// ServiceAccount are service account settings for the api server.
 	ServiceAccount KubeAPIServerServiceAccount `json:"serviceAccount"`
+	FeatureGates   map[string]bool             `json:"featureGates"`
 }
 
 // KubeAPIServerPodTemplateOverlay is the template overlay for pods.

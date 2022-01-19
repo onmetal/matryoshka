@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -145,7 +146,6 @@ func (r *Resolver) getRequests(server *matryoshkav1alpha1.KubeAPIServer) *client
 			Object: &corev1.Secret{},
 		})
 	}
-
 	return s
 }
 
@@ -256,6 +256,10 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServe
 }
 
 func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []string {
+	featureGates := []string{}
+	for key, val := range server.Spec.FeatureGates {
+		featureGates = append(featureGates, key+"="+strconv.FormatBool(val))
+	}
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
 		"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
@@ -275,6 +279,7 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 		fmt.Sprintf("--service-account-issuer=%s", server.Spec.ServiceAccount.Issuer),
 		fmt.Sprintf("--service-account-key-file=%s/tls.key", ServiceAccountKeyVolumePath),
 		fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", ServiceAccountSigningKeyVolumePath),
+		fmt.Sprintf("--feature-gates=%s", strings.Join(featureGates, ",")),
 	}
 
 	if tls := server.Spec.SecureServing; tls != nil {

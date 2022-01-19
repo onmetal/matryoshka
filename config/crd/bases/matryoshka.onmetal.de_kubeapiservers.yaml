@@ -132,6 +132,10 @@ spec:
                 required:
                 - servers
                 type: object
+              featureGates:
+                additionalProperties:
+                  type: boolean
+                type: object
               overlay:
                 description: Overlay is the KubeAPIServerPodTemplateOverlay to use
                   to scaffold the deployment.
@@ -6362,6 +6366,7 @@ spec:
             required:
             - authentication
             - etcd
+            - featureGates
             - replicas
             - serviceAccount
             - version

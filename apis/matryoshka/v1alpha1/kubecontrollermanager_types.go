@@ -55,6 +55,8 @@ type KubeControllerManagerSpec struct {
 	Authentication *KubeControllerManagerAuthentication `json:"authentication,omitempty"`
 	// Authorization is configuration how the kube controller manager handles authorization / authorizing requests.
 	Authorization *KubeControllerManagerAuthorization `json:"authorization,omitempty"`
+	// FeatureGates describe which alpha features should be enabled or beta features disabled
+	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
 
 // KubeControllerManagerPodTemplateOverlay is the template overlay for pods.

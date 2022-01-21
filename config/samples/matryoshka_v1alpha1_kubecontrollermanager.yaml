@@ -75,3 +75,5 @@ spec:
     metadata:
       labels:
         foo: bar
+  featureGates:
+    ControllerManagerLeaderMigration: false # as of k8s 1.22, beta feature, default true

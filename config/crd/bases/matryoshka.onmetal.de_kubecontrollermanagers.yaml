@@ -113,6 +113,12 @@ spec:
                         type: string
                     type: object
                 type: object
+              featureGates:
+                additionalProperties:
+                  type: boolean
+                description: FeatureGates describe which alpha features should be
+                  enabled or beta features disabled
+                type: object
               generic:
                 description: Generic is the generic / base configuration required
                   for any kube controller manager.

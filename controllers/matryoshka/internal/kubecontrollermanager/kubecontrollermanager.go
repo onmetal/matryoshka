@@ -294,6 +294,11 @@ const (
 )
 
 func (r *Resolver) kubeControllerManagerCommand(kcm *matryoshkav1alpha1.KubeControllerManager) []string {
+	featureGates := []string{}
+	for key, val := range kcm.Spec.FeatureGates {
+		featureGates = append(featureGates, fmt.Sprintf("%v=%v", key, val))
+	}
+
 	cmd := []string{
 		"/usr/local/bin/kube-controller-manager",
 		"--bind-address=0.0.0.0",
@@ -302,6 +307,7 @@ func (r *Resolver) kubeControllerManagerCommand(kcm *matryoshkav1alpha1.KubeCont
 
 		fmt.Sprintf("--cluster-name=%s", kcm.Spec.Shared.ClusterName),
 		fmt.Sprintf("--controllers=%s", strings.Join(kcm.Spec.Generic.Controllers, ",")),
+		fmt.Sprintf("--feature-gates=%s", strings.Join(featureGates, ",")),
 		fmt.Sprintf("--kubeconfig=%s/%s", KubeconfigVolumePath, utils.StringOrDefault(kcm.Spec.Generic.KubeconfigSecret.Key, matryoshkav1alpha1.DefaultKubeControllerManagerGenericConfigurationKubeconfigKey)),
 		fmt.Sprintf("--use-service-account-credentials=%t", kcm.Spec.Shared.ControllerCredentials == matryoshkav1alpha1.KubeControllerManagerServiceAccountCredentials),
 	}

@@ -136,6 +136,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 			fmt.Sprintf("--authorization-kubeconfig=%s/%s", kubecontrollermanager.AuthorizationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthorizationKubeconfigSecretKey),
 			fmt.Sprintf("--authentication-kubeconfig=%s/%s", kubecontrollermanager.AuthenticationKubeconfigVolumePath, matryoshkav1alpha1.DefaultKubeControllerManagerAuthenticationKubeconfigSecretKey),
 			"--authentication-skip-lookup=true",
+			"--feature-gates=ControllerManagerLeaderMigration=false",
 		))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{

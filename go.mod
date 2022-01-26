@@ -10,8 +10,8 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.0
 	k8s.io/api v0.23.1
-	k8s.io/apimachinery v0.23.1
+	k8s.io/apimachinery v0.23.3
 	k8s.io/client-go v0.23.1
-	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
+	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/controller-runtime v0.11.0
 )

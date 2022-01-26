@@ -8,7 +8,7 @@ require (
 	github.com/google/addlicense v1.0.0
 	github.com/onmetal/controller-utils v0.2.4
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.17.0
+	github.com/onsi/gomega v1.18.0
 	k8s.io/api v0.23.1
 	k8s.io/apimachinery v0.23.1
 	k8s.io/client-go v0.23.1

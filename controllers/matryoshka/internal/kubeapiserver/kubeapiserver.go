@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -376,19 +375,22 @@ func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, s
 }
 
 func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer, path string) (*corev1.Probe, error) {
-	headers, err := r.probeHTTPHeaders(ctx, s, server)
-	if err != nil {
-		return nil, fmt.Errorf("error getting probe http headers: %w", err)
-	}
+	//headers, err := r.probeHTTPHeaders(ctx, s, server)
+	//if err != nil {
+	//	return nil, fmt.Errorf("error getting probe http headers: %w", err)
+	//}
 
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Scheme:      corev1.URISchemeHTTPS,
-				Path:        path,
-				Port:        intstr.FromInt(443),
-				HTTPHeaders: headers,
+			Exec: &corev1.ExecAction{
+				Command: []string{"bash", "-c", fmt.Sprintf("curl --fail https://localhost:443%s --header \"Authorization: Bearer $(readarray -d, -t arr<<<$AUTH_TOKEN;echo $arr)\"", path)},
 			},
+			//HTTPGet: &corev1.HTTPGetAction{
+			//	Scheme:      corev1.URISchemeHTTPS,
+			//	Path:        path,
+			//	Port:        intstr.FromInt(443),
+			//	HTTPHeaders: headers,
+			//},
 		},
 		InitialDelaySeconds: 15,
 		TimeoutSeconds:      15,
@@ -420,9 +422,64 @@ func (r *Resolver) apiServerContainer(ctx context.Context, s *memorystore.Store,
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
+
 		VolumeMounts:   r.apiServerVolumeMounts(server),
 		LivenessProbe:  livenessProbe,
 		ReadinessProbe: readinessProbe,
+	}
+
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
+		container.Env = []corev1.EnvVar{
+			{
+				Name: "AUTH_TOKEN",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: token.Name},
+						Key:                  utils.StringOrDefault(token.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
+					},
+				},
+			},
+		}
+	}
+
+	if err := common.ApplyContainerOverlay(container, &server.Spec.Overlay.Spec.APIServerContainer); err != nil {
+		return nil, err
+	}
+
+	return container, nil
+}
+
+func (r *Resolver) apiServerSidecar(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
+	livenessProbe, err := r.probeForPath(ctx, s, server, "/livez")
+	if err != nil {
+		return nil, fmt.Errorf("could not create liveness probe: %w", err)
+	}
+
+	readinessProbe, err := r.probeForPath(ctx, s, server, "/readyz")
+	if err != nil {
+		return nil, fmt.Errorf("could not create readiness probe: %w", err)
+	}
+
+	container := &corev1.Container{
+		Name:           "kube-apiserver-sidecar",
+		Image:          "busybox",
+		Command:        []string{"sh", "-c", "tail -f /dev/null"},
+		LivenessProbe:  livenessProbe,
+		ReadinessProbe: readinessProbe,
+	}
+
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
+		container.Env = []corev1.EnvVar{
+			{
+				Name: "AUTH_TOKEN",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: token.Name},
+						Key:                  utils.StringOrDefault(token.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
+					},
+				},
+			},
+		}
 	}
 
 	if err := common.ApplyContainerOverlay(container, &server.Spec.Overlay.Spec.APIServerContainer); err != nil {
@@ -437,6 +494,8 @@ func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, 
 	if err != nil {
 		return nil, err
 	}
+
+	apiServerSidecar, err := r.apiServerSidecar(ctx, s, server)
 
 	spec := &corev1.PodSpec{
 		Containers: []corev1.Container{

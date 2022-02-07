@@ -256,6 +256,10 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServe
 }
 
 func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []string {
+	featureGates := make([]string, 0, len(server.Spec.FeatureGates))
+	for key, val := range server.Spec.FeatureGates {
+		featureGates = append(featureGates, fmt.Sprintf("%v=%v", key, val))
+	}
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
 		"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
@@ -276,7 +280,9 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 		fmt.Sprintf("--service-account-key-file=%s/tls.key", ServiceAccountKeyVolumePath),
 		fmt.Sprintf("--service-account-signing-key-file=%s/tls.key", ServiceAccountSigningKeyVolumePath),
 	}
-
+	if len(featureGates) > 0 {
+		cmd = append(cmd, fmt.Sprintf("--feature-gates=%s", strings.Join(featureGates, ",")))
+	}
 	if tls := server.Spec.SecureServing; tls != nil {
 		cmd = append(cmd,
 			fmt.Sprintf("--tls-cert-file=%s/tls.crt", TLSVolumePath),

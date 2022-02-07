@@ -132,6 +132,12 @@ spec:
                 required:
                 - servers
                 type: object
+              featureGates:
+                additionalProperties:
+                  type: boolean
+                description: FeatureGates describe which alpha features should be
+                  enabled or beta features disabled
+                type: object
               overlay:
                 description: Overlay is the KubeAPIServerPodTemplateOverlay to use
                   to scaffold the deployment.
@@ -6362,6 +6368,7 @@ spec:
             required:
             - authentication
             - etcd
+            - featureGates
             - replicas
             - serviceAccount
             - version

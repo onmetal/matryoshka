@@ -168,3 +168,5 @@ spec:
     metadata:
       labels:
         foo: bar
+  featureGates:
+    "GracefulNodeShutdown": true

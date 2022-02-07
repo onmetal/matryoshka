@@ -256,9 +256,11 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServe
 }
 
 func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []string {
-	featureGates := make([]string, 0, len(server.Spec.FeatureGates))
+	featureGates := make([]string, len(server.Spec.FeatureGates))
+	idx := 0
 	for key, val := range server.Spec.FeatureGates {
-		featureGates = append(featureGates, fmt.Sprintf("%v=%v", key, val))
+		featureGates[idx] = fmt.Sprintf("%v=%v", key, val)
+		idx++
 	}
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",

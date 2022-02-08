@@ -24,7 +24,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -108,8 +107,9 @@ var _ = Describe("KubeAPIServerController", func() {
 		))
 
 		By("inspecting the template containers")
-		Expect(template.Spec.Containers).To(HaveLen(1))
+		Expect(template.Spec.Containers).To(HaveLen(2))
 		container := template.Spec.Containers[0]
+		sidecar := template.Spec.Containers[1]
 		Expect(container.Command).NotTo(BeEmpty())
 		Expect(container.Command[0]).To(Equal("/usr/local/bin/kube-apiserver"))
 		flags := container.Command[1:]
@@ -151,12 +151,10 @@ var _ = Describe("KubeAPIServerController", func() {
 				MountPath: kubeapiserver.TokenVolumePath,
 			},
 		))
-		Expect(container.ReadinessProbe).To(Equal(&corev1.Probe{
+		Expect(sidecar.ReadinessProbe).To(Equal(&corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path:   "/readyz",
-					Port:   intstr.FromInt(443),
-					Scheme: corev1.URISchemeHTTPS,
+				Exec: &corev1.ExecAction{
+					Command: []string{"sh", "-c", "wget -nv -t1 --spider https://localhost:443/readyz"},
 				},
 			},
 			InitialDelaySeconds: 15,
@@ -165,12 +163,10 @@ var _ = Describe("KubeAPIServerController", func() {
 			SuccessThreshold:    1,
 			FailureThreshold:    3,
 		}))
-		Expect(container.LivenessProbe).To(Equal(&corev1.Probe{
+		Expect(sidecar.LivenessProbe).To(Equal(&corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
-				HTTPGet: &corev1.HTTPGetAction{
-					Path:   "/livez",
-					Port:   intstr.FromInt(443),
-					Scheme: corev1.URISchemeHTTPS,
+				Exec: &corev1.ExecAction{
+					Command: []string{"sh", "-c", "wget -nv -t1 --spider https://localhost:443/livez"},
 				},
 			},
 			InitialDelaySeconds: 15,

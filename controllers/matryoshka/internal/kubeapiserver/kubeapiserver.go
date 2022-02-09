@@ -15,19 +15,14 @@
 package kubeapiserver
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -322,78 +317,16 @@ type AuthToken struct {
 	Groups []string
 }
 
-// ParseAuthTokens parses the given data into a slice of AuthToken.
-func ParseAuthTokens(in io.Reader) ([]AuthToken, error) {
-	r := csv.NewReader(in)
-	var tokens []AuthToken
-	for {
-		record, err := r.Read()
-		if err != nil {
-			if !errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("error reading csv: %w", err)
-			}
-			return tokens, nil
-		}
-
-		if len(record) < 3 {
-			return nil, fmt.Errorf("malformed token record %v - has to provide at least three columns", record)
-		}
-
-		token := AuthToken{
-			Token: record[0],
-			User:  record[1],
-			UID:   record[2],
-		}
-		if len(record) > 3 {
-			token.Groups = strings.Split(record[3], ",")
-		}
-
-		tokens = append(tokens, token)
-	}
-}
-
-func (r *Resolver) probeHTTPHeaders(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) ([]corev1.HTTPHeader, error) {
-	var headers []corev1.HTTPHeader
-	if token := server.Spec.Authentication.TokenSecret; token != nil && !server.Spec.Authentication.Anonymous {
-		tokensData, err := utils.GetSecretSelector(ctx, s, server.Namespace, *token, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey)
-		if err != nil {
-			return nil, err
-		}
-
-		tokens, err := ParseAuthTokens(bytes.NewReader(tokensData))
-		if err != nil {
-			return nil, err
-		}
-
-		if len(tokens) == 0 {
-			return nil, fmt.Errorf("no authentication token to use for health checks")
-		}
-
-		headers = append(headers, corev1.HTTPHeader{
-			Name: "Authorization",
-			// TODO: Just picking any token is not a good idea as
-			// * We're exposing the token in the deployment manifest
-			// * The user referenced in the token might not even have access to health / liveness checks.
-			// We should think of a better concept of health checks in the future.
-			Value: fmt.Sprintf("Bearer %s", tokens[0].Token),
-		})
-	}
-	return headers, nil
-}
-
 func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer, path string) (*corev1.Probe, error) {
-	headers, err := r.probeHTTPHeaders(ctx, s, server)
-	if err != nil {
-		return nil, fmt.Errorf("error getting probe http headers: %w", err)
+	var headers string
+	if token := server.Spec.Authentication.TokenSecret; token != nil && !server.Spec.Authentication.Anonymous {
+		headers = " --header \"Authorization: Bearer $(echo $AUTH_TOKEN | cut -d \",\" -f1)\""
 	}
 
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Scheme:      corev1.URISchemeHTTPS,
-				Path:        path,
-				Port:        intstr.FromInt(443),
-				HTTPHeaders: headers,
+			Exec: &corev1.ExecAction{
+				Command: []string{"sh", "-c", fmt.Sprintf("wget -nv -t1 --spider https://localhost:443%s%s", path, headers)},
 			},
 		},
 		InitialDelaySeconds: 15,
@@ -404,17 +337,7 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 	}, nil
 }
 
-func (r *Resolver) apiServerContainer(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
-	livenessProbe, err := r.probeForPath(ctx, s, server, "/livez")
-	if err != nil {
-		return nil, fmt.Errorf("could not create liveness probe: %w", err)
-	}
-
-	readinessProbe, err := r.probeForPath(ctx, s, server, "/readyz")
-	if err != nil {
-		return nil, fmt.Errorf("could not create readiness probe: %w", err)
-	}
-
+func (r *Resolver) apiServerContainer(server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
 	container := &corev1.Container{
 		Name:    "kube-apiserver",
 		Image:   fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
@@ -426,9 +349,48 @@ func (r *Resolver) apiServerContainer(ctx context.Context, s *memorystore.Store,
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
-		VolumeMounts:   r.apiServerVolumeMounts(server),
+
+		VolumeMounts: r.apiServerVolumeMounts(server),
+	}
+
+	if err := common.ApplyContainerOverlay(container, &server.Spec.Overlay.Spec.APIServerContainer); err != nil {
+		return nil, err
+	}
+
+	return container, nil
+}
+
+func (r *Resolver) apiServerSidecar(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
+	livenessProbe, err := r.probeForPath(ctx, s, server, "/livez")
+	if err != nil {
+		return nil, fmt.Errorf("could not create liveness probe: %w", err)
+	}
+
+	readinessProbe, err := r.probeForPath(ctx, s, server, "/readyz")
+	if err != nil {
+		return nil, fmt.Errorf("could not create readiness probe: %w", err)
+	}
+
+	container := &corev1.Container{
+		Name:           "kube-apiserver-sidecar",
+		Image:          "busybox",
+		Command:        []string{"sh", "-c", "tail -f /dev/null"},
 		LivenessProbe:  livenessProbe,
 		ReadinessProbe: readinessProbe,
+	}
+
+	if token := server.Spec.Authentication.TokenSecret; token != nil {
+		container.Env = []corev1.EnvVar{
+			{
+				Name: "AUTH_TOKEN",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: token.Name},
+						Key:                  utils.StringOrDefault(token.Key, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
+					},
+				},
+			},
+		}
 	}
 
 	if err := common.ApplyContainerOverlay(container, &server.Spec.Overlay.Spec.APIServerContainer); err != nil {
@@ -439,7 +401,12 @@ func (r *Resolver) apiServerContainer(ctx context.Context, s *memorystore.Store,
 }
 
 func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, server *matryoshkav1alpha1.KubeAPIServer) (*corev1.PodSpec, error) {
-	apiServerContainer, err := r.apiServerContainer(ctx, s, server)
+	apiServerContainer, err := r.apiServerContainer(server)
+	if err != nil {
+		return nil, err
+	}
+
+	apiServerSidecar, err := r.apiServerSidecar(ctx, s, server)
 	if err != nil {
 		return nil, err
 	}
@@ -447,6 +414,7 @@ func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, 
 	spec := &corev1.PodSpec{
 		Containers: []corev1.Container{
 			*apiServerContainer,
+			*apiServerSidecar,
 		},
 		TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
 		Volumes:                       r.apiServerVolumes(server),

@@ -51,7 +51,7 @@ type KubeAPIServerSpec struct {
 	// ServiceAccount are service account settings for the api server.
 	ServiceAccount KubeAPIServerServiceAccount `json:"serviceAccount"`
 	// FeatureGates describe which alpha features should be enabled or beta features disabled
-	FeatureGates map[string]bool `json:"featureGates"`
+	FeatureGates map[string]bool `json:"featureGates,omitempty"`
 }
 
 // KubeAPIServerPodTemplateOverlay is the template overlay for pods.

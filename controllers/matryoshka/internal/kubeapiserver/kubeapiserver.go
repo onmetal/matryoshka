@@ -253,8 +253,13 @@ func (r *Resolver) apiServerVolumeMounts(server *matryoshkav1alpha1.KubeAPIServe
 func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []string {
 	featureGates := make([]string, 0, len(server.Spec.FeatureGates))
 	for key, val := range server.Spec.FeatureGates {
-		featureGates = append(featureGates, fmt.Sprintf("%v=%v", key, val))
+		featureGates = append(featureGates, fmt.Sprintf("%s=%t", key, val))
 	}
+	runtimeConfig := make([]string, 0, len(server.Spec.RuntimeConfig))
+	for key, val := range server.Spec.RuntimeConfig {
+		runtimeConfig = append(runtimeConfig, fmt.Sprintf("%s=%t", key, val))
+	}
+
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
 		fmt.Sprintf("--enable-admission-plugins=%s", strings.Join(server.Spec.AdmissionPlugins, ",")),
@@ -277,6 +282,9 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	}
 	if len(featureGates) > 0 {
 		cmd = append(cmd, fmt.Sprintf("--feature-gates=%s", strings.Join(featureGates, ",")))
+	}
+	if len(runtimeConfig) > 0 {
+		cmd = append(cmd, fmt.Sprintf("--runtime-config=%s", strings.Join(runtimeConfig, ",")))
 	}
 	if tls := server.Spec.SecureServing; tls != nil {
 		cmd = append(cmd,
@@ -303,11 +311,6 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 		cmd = append(cmd,
 			fmt.Sprintf("--etcd-certfile=%s/tls.crt", ETCDKeyVolumePath),
 			fmt.Sprintf("--etcd-keyfile=%s/tls.key", ETCDKeyVolumePath),
-		)
-	}
-	if server.Spec.RuntimeConfig != nil {
-		cmd = append(cmd,
-			fmt.Sprintf("--runtime-config=%s", strings.Join(server.Spec.RuntimeConfig, ",")),
 		)
 	}
 

@@ -61,8 +61,7 @@ type KubeAPIServerSpec struct {
 	// api/beta=true|false controls all API versions of the form v[0-9]+beta[0-9]+.
 	// api/alpha=true|false controls all API versions of the form v[0-9]+alpha[0-9]+.
 	// api/legacy is deprecated, and will be removed in a future version.
-	//+kubebuilder:default={}
-	RuntimeConfig []string `json:"runtime-config,omitempty"`
+	RuntimeConfig map[string]bool `json:"runtimeConfig,omitempty"`
 	// AdmissionPlugins defaults to NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
 	//+kubebuilder:default={NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota}
 	AdmissionPlugins []string `json:"admissionPlugins,omitempty"`

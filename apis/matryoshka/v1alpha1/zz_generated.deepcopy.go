@@ -365,8 +365,10 @@ func (in *KubeAPIServerSpec) DeepCopyInto(out *KubeAPIServerSpec) {
 	}
 	if in.RuntimeConfig != nil {
 		in, out := &in.RuntimeConfig, &out.RuntimeConfig
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+		*out = make(map[string]bool, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 	if in.AdmissionPlugins != nil {
 		in, out := &in.AdmissionPlugins, &out.AdmissionPlugins

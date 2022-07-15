@@ -170,5 +170,5 @@ spec:
         foo: bar
   featureGates:
     "GracefulNodeShutdown": true
-  runtime-config:
-    - "api/alpha=false"
+  runtimeConfig:
+    api/alpha: false

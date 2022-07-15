@@ -115,6 +115,7 @@ var _ = Describe("KubeAPIServerController", func() {
 		flags := container.Command[1:]
 		Expect(flags).To(ConsistOf(
 			"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
+			"--runtime-config=api/alpha=false",
 			"--allow-privileged=false",
 			"--authorization-mode=Node,RBAC",
 			"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
@@ -133,7 +134,6 @@ var _ = Describe("KubeAPIServerController", func() {
 			fmt.Sprintf("--tls-private-key-file=%s/tls.key", kubeapiserver.TLSVolumePath),
 			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
 			"--feature-gates=GracefulNodeShutdown=true",
-			"--runtime-config=api/alpha=false",
 		))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{

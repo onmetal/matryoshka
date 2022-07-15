@@ -52,6 +52,20 @@ type KubeAPIServerSpec struct {
 	ServiceAccount KubeAPIServerServiceAccount `json:"serviceAccount"`
 	// FeatureGates describe which alpha features should be enabled or beta features disabled
 	FeatureGates map[string]bool `json:"featureGates,omitempty"`
+	// RuntimeConfig passes --runtime-config <comma-separated 'key=value' pairs>.
+	// A set of key=value pairs that enable or disable built-in APIs. Supported options are:
+	// v1=true|false for the core API group.
+	// <group>/<version>=true|false for a specific API group and version (e.g. apps/v1=true).
+	// api/all=true|false controls all API versions.
+	// api/ga=true|false controls all API versions of the form v[0-9]+.
+	// api/beta=true|false controls all API versions of the form v[0-9]+beta[0-9]+.
+	// api/alpha=true|false controls all API versions of the form v[0-9]+alpha[0-9]+.
+	// api/legacy is deprecated, and will be removed in a future version.
+	//+kubebuilder:default={}
+	RuntimeConfig []string `json:"runtime-config,omitempty"`
+	// AdmissionPlugins defaults to NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
+	//+kubebuilder:default={NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota}
+	AdmissionPlugins []string `json:"admissionPlugins,omitempty"`
 }
 
 // KubeAPIServerPodTemplateOverlay is the template overlay for pods.

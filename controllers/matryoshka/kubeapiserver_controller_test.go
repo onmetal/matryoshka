@@ -133,6 +133,7 @@ var _ = Describe("KubeAPIServerController", func() {
 			fmt.Sprintf("--tls-private-key-file=%s/tls.key", kubeapiserver.TLSVolumePath),
 			fmt.Sprintf("--token-auth-file=%s/%s", kubeapiserver.TokenVolumePath, matryoshkav1alpha1.DefaultKubeAPIServerAuthenticationTokenSecretKey),
 			"--feature-gates=GracefulNodeShutdown=true",
+			"--runtime-config=api/alpha=false",
 		))
 		Expect(container.VolumeMounts).To(ConsistOf(
 			corev1.VolumeMount{

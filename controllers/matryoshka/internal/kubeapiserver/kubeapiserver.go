@@ -257,7 +257,7 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 	}
 	cmd := []string{
 		"/usr/local/bin/kube-apiserver",
-		"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
+		fmt.Sprintf("--enable-admission-plugins=%s", strings.Join(server.Spec.AdmissionPlugins, ",")),
 		"--allow-privileged=false",
 		"--authorization-mode=Node,RBAC",
 		"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",
@@ -303,6 +303,11 @@ func (r *Resolver) apiServerCommand(server *matryoshkav1alpha1.KubeAPIServer) []
 		cmd = append(cmd,
 			fmt.Sprintf("--etcd-certfile=%s/tls.crt", ETCDKeyVolumePath),
 			fmt.Sprintf("--etcd-keyfile=%s/tls.key", ETCDKeyVolumePath),
+		)
+	}
+	if server.Spec.RuntimeConfig != nil {
+		cmd = append(cmd,
+			fmt.Sprintf("--runtime-config=%s", strings.Join(server.Spec.RuntimeConfig, ",")),
 		)
 	}
 

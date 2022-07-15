@@ -115,6 +115,7 @@ var _ = Describe("KubeAPIServerController", func() {
 		flags := container.Command[1:]
 		Expect(flags).To(ConsistOf(
 			"--enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota",
+			"--runtime-config=api/alpha=false",
 			"--allow-privileged=false",
 			"--authorization-mode=Node,RBAC",
 			"--kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP",

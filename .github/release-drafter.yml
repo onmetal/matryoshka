@@ -5,6 +5,7 @@ categories:
     labels:
       - 'feature'
       - 'enhancement'
+      - 'controller'
   - title: '🐛 Bug Fixes'
     labels:
       - 'fix'
@@ -31,6 +32,9 @@ version-resolver:
 exclude-labels:
   - 'skip-changelog'
 autolabeler:
+  - label: 'controller'
+    files:
+      - '/controllers/*'
   - label: 'api-change'
     files:
       - '/apis/**/*'

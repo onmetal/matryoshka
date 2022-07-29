@@ -17,19 +17,17 @@ package matryoshka
 import (
 	"context"
 	"fmt"
-	"time"
 
-	. "github.com/onsi/ginkgo"
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeapiserver"
+	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/kubeapiserver"
-	"github.com/onmetal/matryoshka/controllers/matryoshka/internal/utils"
 )
 
 var _ = Describe("KubeAPIServerController", func() {
@@ -47,9 +45,11 @@ var _ = Describe("KubeAPIServerController", func() {
 
 		By("waiting for a deployment to be created")
 		deployment := &appsv1.Deployment{}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "apiserver-sample"}, deployment)
-		}, 3*time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "apiserver-sample"}, deployment)
+			Expect(client.IgnoreNotFound(err)).NotTo(HaveOccurred())
+			g.Expect(err).NotTo(HaveOccurred())
+		}).Should(Succeed())
 
 		By("inspecting the deployment")
 		Expect(deployment.Spec.Selector).To(Equal(&metav1.LabelSelector{

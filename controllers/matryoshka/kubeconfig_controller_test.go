@@ -16,12 +16,10 @@ package matryoshka
 
 import (
 	"context"
-	"time"
-
-	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 
 	"github.com/onmetal/controller-utils/clientutils"
-	. "github.com/onsi/ginkgo"
+	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -65,7 +63,7 @@ var _ = Describe("KubeconfigController", func() {
 		secret := &corev1.Secret{}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Namespace: ns.Name, Name: "my-kubeconfig"}, secret)
-		}, 3*time.Second).Should(Succeed())
+		}).Should(Succeed())
 
 		By("inspecting the secret")
 		Expect(secret.Data).To(Equal(map[string][]byte{

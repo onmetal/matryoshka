@@ -7,7 +7,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/addlicense v1.0.0
 	github.com/onmetal/controller-utils v0.6.3
-	github.com/onsi/ginkgo/v2 v2.1.6
+	github.com/onsi/ginkgo/v2 v2.2.0
 	github.com/onsi/gomega v1.20.2
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0

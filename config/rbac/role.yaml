@@ -113,3 +113,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubeschedulers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubeschedulers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubeschedulers/status
+  verbs:
+  - get
+  - patch
+  - update

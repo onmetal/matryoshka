@@ -1,0 +1,20 @@
+# permissions for end users to view kubeschedulers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubescheduler-viewer-role
+rules:
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubeschedulers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - matryoshka.onmetal.de
+  resources:
+  - kubeschedulers/status
+  verbs:
+  - get

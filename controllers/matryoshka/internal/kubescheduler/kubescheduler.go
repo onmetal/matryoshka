@@ -138,7 +138,7 @@ func (r *Resolver) schedulerContainer(_ context.Context, _ *memorystore.Store, k
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/healthz",
-					Port:   intstr.FromInt(10257),
+					Port:   intstr.FromInt(10259),
 					Scheme: corev1.URISchemeHTTPS,
 				},
 			},

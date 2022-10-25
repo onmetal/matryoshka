@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/onmetal/controller-utils/cmdutils/switches"
+
 	matryoshkav1alpha1 "github.com/onmetal/matryoshka/apis/matryoshka/v1alpha1"
 	matryoshkacontrollers "github.com/onmetal/matryoshka/controllers/matryoshka"
 	//+kubebuilder:scaffold:imports
@@ -45,6 +46,7 @@ var (
 	kubeconfigController            = "kubeconfig"
 	kubeAPIServerController         = "kubeapiserver"
 	kubeControllerManagerController = "kubecontrollermanager"
+	kubeSchedulerController         = "kubescheduler"
 )
 
 func init() {
@@ -65,7 +67,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 
 	controllers := switches.New(
-		kubeconfigController, kubeAPIServerController, kubeControllerManagerController,
+		kubeconfigController, kubeAPIServerController, kubeControllerManagerController, kubeSchedulerController,
 	)
 	flag.Var(controllers, "controllers", fmt.Sprintf("Controllers to enable. All controllers: %v", controllers.All()))
 
@@ -114,6 +116,15 @@ func main() {
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "KubeControllerManager")
+			os.Exit(1)
+		}
+	}
+	if controllers.Enabled(kubeSchedulerController) {
+		if err = (&matryoshkacontrollers.KubeSchedulerReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "KubeScheduler")
 			os.Exit(1)
 		}
 	}

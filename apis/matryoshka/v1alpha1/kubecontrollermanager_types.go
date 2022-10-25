@@ -63,7 +63,7 @@ type KubeControllerManagerSpec struct {
 type KubeControllerManagerPodTemplateOverlay struct {
 	// ObjectMeta specifies additional object metadata to set on the managed pods.
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Spec is the KubeAPIServerPodOverlay overlay specification for the pod.
+	// Spec is the KubeControllerManagerPodOverlay overlay specification for the pod.
 	Spec KubeControllerManagerPodOverlay `json:"spec,omitempty"`
 }
 
@@ -71,7 +71,7 @@ type KubeControllerManagerPodTemplateOverlay struct {
 type KubeControllerManagerPodOverlay struct {
 	// PodOverlay is the base managed pod specification.
 	PodOverlay `json:",inline,omitempty"`
-	// ControllerManagerContainer is the ContainerOverlay that hosts the api server.
+	// ControllerManagerContainer is the ContainerOverlay that hosts the kube controller manager.
 	ControllerManagerContainer ContainerOverlay `json:"controllerManagerContainer,omitempty"`
 }
 

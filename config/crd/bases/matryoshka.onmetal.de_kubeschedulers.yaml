@@ -5,14 +5,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.0
   creationTimestamp: null
-  name: kubeapiservers.matryoshka.onmetal.de
+  name: kubeschedulers.matryoshka.onmetal.de
 spec:
   group: matryoshka.onmetal.de
   names:
-    kind: KubeAPIServer
-    listKind: KubeAPIServerList
-    plural: kubeapiservers
-    singular: kubeapiserver
+    kind: KubeScheduler
+    listKind: KubeSchedulerList
+    plural: kubeschedulers
+    singular: kubescheduler
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: KubeAPIServer is the Schema for the KubeAPIServers API
+        description: KubeScheduler is the Schema for the kubeschedulers API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -49,99 +49,71 @@ spec:
           metadata:
             type: object
           spec:
-            description: KubeAPIServerSpec defines the desired state of KubeAPIServer
+            description: KubeSchedulerSpec defines the desired state of KubeScheduler
             properties:
-              admissionPlugins:
-                default:
-                - NamespaceLifecycle
-                - NodeRestriction
-                - LimitRanger
-                - ServiceAccount
-                - DefaultStorageClass
-                - ResourceQuota
-                description: AdmissionPlugins defaults to NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
-                items:
-                  type: string
-                type: array
               authentication:
-                description: Authentication specifies how users can authenticate to
-                  the api server.
+                description: Authentication is configuration how the kube scheduler
+                  handles authentication / authenticating requests.
                 properties:
-                  anonymous:
-                    description: Anonymous specifies whether anonymous authentication
-                      is enabled.
+                  kubeconfigSecret:
+                    description: KubeconfigSecret is the kubeconfig secret used for
+                      authenticating.
+                    properties:
+                      key:
+                        description: Key is the key to look up in the config map data.
+                          Some types use a default if this value is unset.
+                        type: string
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                  skipLookup:
+                    description: SkipLookup instructs the kube scheduler to skip looking
+                      up additional authentication information from the api server.
                     type: boolean
-                  bootstrapToken:
-                    description: BootstrapToken specifies whether bootstrap token
-                      authentication is enabled.
-                    type: boolean
-                  clientCertificateSecret:
-                    description: ClientCertificateSecret makes any request presenting
-                      a client certificate signed by one of the authorities in the
-                      client-ca-file to be authenticated with an identity corresponding
-                      to the CommonName of the client certificate.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                  tokenSecret:
-                    description: TokenSecret specifies whether token authentication
-                      is enabled and where these tokens are located at.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                type: object
-              etcd:
-                description: ETCD specifies the KubeAPIServerETCD connection settings.
-                properties:
-                  certificateAuthoritySecret:
-                    description: CertificateAuthoritySecret is an optional specification
-                      of the certificate authority to use when connecting to the etcd.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                  keySecret:
-                    description: KeySecret is an optional specification of the key
-                      to use when connecting to the etcd.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                  servers:
-                    description: Servers is the list of etcd servers for the api server
-                      to connect to.
-                    items:
-                      type: string
-                    minItems: 1
-                    type: array
                 required:
-                - servers
+                - kubeconfigSecret
+                type: object
+              authorization:
+                description: Authorization is configuration how the kube scheduler
+                  handles authorization / authorizing requests.
+                properties:
+                  kubeconfigSecret:
+                    description: KubeconfigSecret is the kugbeconfig secret used for
+                      authorizing.
+                    properties:
+                      key:
+                        description: Key is the key to look up in the config map data.
+                          Some types use a default if this value is unset.
+                        type: string
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                required:
+                - kubeconfigSecret
+                type: object
+              componentConfig:
+                description: ComponentConfig is the base configuration required for
+                  any kube scheduler.
+                properties:
+                  kubeconfigSecret:
+                    description: KubeconfigSecret is the reference to the kubeconfig
+                      secret.
+                    properties:
+                      key:
+                        description: Key is the key to look up in the config map data.
+                          Some types use a default if this value is unset.
+                        type: string
+                      name:
+                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Add other useful fields. apiVersion, kind, uid?'
+                        type: string
+                    type: object
+                required:
+                - kubeconfigSecret
                 type: object
               featureGates:
                 additionalProperties:
@@ -150,7 +122,7 @@ spec:
                   enabled or beta features disabled
                 type: object
               overlay:
-                description: Overlay is the KubeAPIServerPodTemplateOverlay to use
+                description: Overlay is the KubeSchedulerPodTemplateOverlay to use
                   to scaffold the deployment.
                 properties:
                   metadata:
@@ -175,7 +147,7 @@ spec:
                         type: string
                     type: object
                   spec:
-                    description: Spec is the KubeAPIServerPodOverlay overlay specification
+                    description: Spec is the KubeSchedulerPodOverlay overlay specification
                       for the pod.
                     properties:
                       additionalContainers:
@@ -5328,9 +5300,124 @@ spec:
                                 type: array
                             type: object
                         type: object
-                      apiServerContainer:
-                        description: APIServerContainer is the ContainerOverlay that
-                          hosts the api server.
+                      automountServiceAccountToken:
+                        description: AutomountServiceAccountToken indicates whether
+                          a service account token should be automatically mounted.
+                        type: boolean
+                      dnsConfig:
+                        description: DNSConfig Specifies the DNS parameters of a pod.
+                        properties:
+                          nameservers:
+                            description: A list of DNS name server IP addresses. This
+                              will be appended to the base nameservers generated from
+                              DNSPolicy. Duplicated nameservers will be removed.
+                            items:
+                              type: string
+                            type: array
+                          options:
+                            description: A list of DNS resolver options. This will
+                              be merged with the base options generated from DNSPolicy.
+                              Duplicated entries will be removed. Resolution options
+                              given in Options will override those that appear in
+                              the base DNSPolicy.
+                            items:
+                              description: PodDNSConfigOption defines DNS resolver
+                                options of a pod.
+                              properties:
+                                name:
+                                  description: Required.
+                                  type: string
+                                value:
+                                  type: string
+                              type: object
+                            type: array
+                          searches:
+                            description: A list of DNS search domains for host-name
+                              lookup. This will be appended to the base search paths
+                              generated from DNSPolicy. Duplicated search paths will
+                              be removed.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      dnsPolicy:
+                        description: DNSPolicy sets the DNS policy for the pod. Defaults
+                          to "ClusterFirst".
+                        type: string
+                      enableServiceLinks:
+                        description: EnableServiceLinks indicates whether information
+                          about services should be injected into pod's environment
+                          variables, matching the syntax of Docker links.
+                        type: boolean
+                      hostAliases:
+                        description: HostAliases is an optional list of hosts and
+                          IPs that will be injected into the pod's hosts file if specified.
+                          This is only valid for non-hostNetwork pods.
+                        items:
+                          description: HostAlias holds the mapping between IP and
+                            hostnames that will be injected as an entry in the pod's
+                            hosts file.
+                          properties:
+                            hostnames:
+                              description: Hostnames for the above IP address.
+                              items:
+                                type: string
+                              type: array
+                            ip:
+                              description: IP address of the host file entry.
+                              type: string
+                          type: object
+                        type: array
+                      hostIPC:
+                        description: 'Use the host''s ipc namespace. Optional: Default
+                          to false.'
+                        type: boolean
+                      hostNetwork:
+                        description: Host networking requested for this pod. Use the
+                          host's network namespace. If this option is set, the ports
+                          that will be used must be specified.
+                        type: boolean
+                      hostPID:
+                        description: 'Use the host''s pid namespace. Optional: Default
+                          to false.'
+                        type: boolean
+                      hostname:
+                        description: Specifies the hostname of the Pod If not specified,
+                          the pod's hostname will be set to a system-defined value.
+                        type: string
+                      nodeName:
+                        description: NodeName is a request to schedule this pod onto
+                          a specific node. If it is non-empty, the scheduler simply
+                          schedules this pod onto that node, assuming that it fits
+                          resource requirements.
+                        type: string
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: NodeSelector is a selector which must be true
+                          for the pod to fit on a node. Selector which must match
+                          a node's labels for the pod to be scheduled on that node.
+                        type: object
+                      preemptionPolicy:
+                        description: PreemptionPolicy is the Policy for preempting
+                          pods with lower priority.
+                        type: string
+                      priority:
+                        description: Priority is the priority value.
+                        format: int32
+                        type: integer
+                      priorityClassName:
+                        description: PriorityClassName indicates the pod's priority.
+                        type: string
+                      runtimeClassName:
+                        description: RuntimeClassName refers to a RuntimeClass object
+                          in the node.k8s.io group, which should be used to run this
+                          pod. If no RuntimeClass resource matches the named class,
+                          the pod will not be run.
+                        type: string
+                      schedulerContainer:
+                        description: SchedulerContainer is the ContainerOverlay that
+                          hosts the kube scheduler.
                         properties:
                           additionalEnv:
                             description: AdditionalEnv specifies a list of additional
@@ -5806,121 +5893,6 @@ spec:
                                 type: object
                             type: object
                         type: object
-                      automountServiceAccountToken:
-                        description: AutomountServiceAccountToken indicates whether
-                          a service account token should be automatically mounted.
-                        type: boolean
-                      dnsConfig:
-                        description: DNSConfig Specifies the DNS parameters of a pod.
-                        properties:
-                          nameservers:
-                            description: A list of DNS name server IP addresses. This
-                              will be appended to the base nameservers generated from
-                              DNSPolicy. Duplicated nameservers will be removed.
-                            items:
-                              type: string
-                            type: array
-                          options:
-                            description: A list of DNS resolver options. This will
-                              be merged with the base options generated from DNSPolicy.
-                              Duplicated entries will be removed. Resolution options
-                              given in Options will override those that appear in
-                              the base DNSPolicy.
-                            items:
-                              description: PodDNSConfigOption defines DNS resolver
-                                options of a pod.
-                              properties:
-                                name:
-                                  description: Required.
-                                  type: string
-                                value:
-                                  type: string
-                              type: object
-                            type: array
-                          searches:
-                            description: A list of DNS search domains for host-name
-                              lookup. This will be appended to the base search paths
-                              generated from DNSPolicy. Duplicated search paths will
-                              be removed.
-                            items:
-                              type: string
-                            type: array
-                        type: object
-                      dnsPolicy:
-                        description: DNSPolicy sets the DNS policy for the pod. Defaults
-                          to "ClusterFirst".
-                        type: string
-                      enableServiceLinks:
-                        description: EnableServiceLinks indicates whether information
-                          about services should be injected into pod's environment
-                          variables, matching the syntax of Docker links.
-                        type: boolean
-                      hostAliases:
-                        description: HostAliases is an optional list of hosts and
-                          IPs that will be injected into the pod's hosts file if specified.
-                          This is only valid for non-hostNetwork pods.
-                        items:
-                          description: HostAlias holds the mapping between IP and
-                            hostnames that will be injected as an entry in the pod's
-                            hosts file.
-                          properties:
-                            hostnames:
-                              description: Hostnames for the above IP address.
-                              items:
-                                type: string
-                              type: array
-                            ip:
-                              description: IP address of the host file entry.
-                              type: string
-                          type: object
-                        type: array
-                      hostIPC:
-                        description: 'Use the host''s ipc namespace. Optional: Default
-                          to false.'
-                        type: boolean
-                      hostNetwork:
-                        description: Host networking requested for this pod. Use the
-                          host's network namespace. If this option is set, the ports
-                          that will be used must be specified.
-                        type: boolean
-                      hostPID:
-                        description: 'Use the host''s pid namespace. Optional: Default
-                          to false.'
-                        type: boolean
-                      hostname:
-                        description: Specifies the hostname of the Pod If not specified,
-                          the pod's hostname will be set to a system-defined value.
-                        type: string
-                      nodeName:
-                        description: NodeName is a request to schedule this pod onto
-                          a specific node. If it is non-empty, the scheduler simply
-                          schedules this pod onto that node, assuming that it fits
-                          resource requirements.
-                        type: string
-                      nodeSelector:
-                        additionalProperties:
-                          type: string
-                        description: NodeSelector is a selector which must be true
-                          for the pod to fit on a node. Selector which must match
-                          a node's labels for the pod to be scheduled on that node.
-                        type: object
-                      preemptionPolicy:
-                        description: PreemptionPolicy is the Policy for preempting
-                          pods with lower priority.
-                        type: string
-                      priority:
-                        description: Priority is the priority value.
-                        format: int32
-                        type: integer
-                      priorityClassName:
-                        description: PriorityClassName indicates the pod's priority.
-                        type: string
-                      runtimeClassName:
-                        description: RuntimeClassName refers to a RuntimeClass object
-                          in the node.k8s.io group, which should be used to run this
-                          pod. If no RuntimeClass resource matches the named class,
-                          the pod will not be run.
-                        type: string
                       schedulerName:
                         description: If specified, the pod will be dispatched by specified
                           scheduler. If not specified, the pod will be dispatched
@@ -6355,42 +6327,12 @@ spec:
                 type: object
               replicas:
                 default: 1
-                description: Replicas specifies the desired amount of replicas for
-                  the api server deployment. This is a pointer to distinguish between
-                  not specified and explicit zero.
+                description: Replicas specifies the number of kube scheduler replicas
+                  to create. This is a pointer to distinguish between not specified
+                  and explicit zero.
                 format: int32
                 minimum: 0
                 type: integer
-              runtimeConfig:
-                additionalProperties:
-                  type: boolean
-                description: 'RuntimeConfig passes --runtime-config <comma-separated
-                  ''key=value'' pairs>. A set of key=value pairs that enable or disable
-                  built-in APIs. Supported options are: v1=true|false for the core
-                  API group. <group>/<version>=true|false for a specific API group
-                  and version (e.g. apps/v1=true). api/all=true|false controls all
-                  API versions. api/ga=true|false controls all API versions of the
-                  form v[0-9]+. api/beta=true|false controls all API versions of the
-                  form v[0-9]+beta[0-9]+. api/alpha=true|false controls all API versions
-                  of the form v[0-9]+alpha[0-9]+. api/legacy is deprecated, and will
-                  be removed in a future version.'
-                type: object
-              secureServing:
-                description: SecureServing optionally defines how to secure the api
-                  server.
-                properties:
-                  secret:
-                    description: Secret references a secret containing 'tls.crt' and
-                      'tls.key' to use for TLS-securing the API server.
-                    properties:
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                required:
-                - secret
-                type: object
               selector:
                 description: Selector specifies the label selector to discover managed
                   pods.
@@ -6436,57 +6378,16 @@ spec:
                       are ANDed.
                     type: object
                 type: object
-              serviceAccount:
-                description: ServiceAccount are service account settings for the api
-                  server.
-                properties:
-                  issuer:
-                    description: Issuer is the service account issuer.
-                    type: string
-                  keySecret:
-                    description: KeySecret references a secret containing a key 'tls.key'
-                      that contains the key to sign and verify service accounts with.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                  signingKeySecret:
-                    description: SigningKeySecret references a secret containing a
-                      key 'tls.key' that contains the key to sign and verify service
-                      accounts with.
-                    properties:
-                      key:
-                        description: Key is the key to look up in the config map data.
-                          Some types use a default if this value is unset.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                    type: object
-                required:
-                - issuer
-                - keySecret
-                - signingKeySecret
-                type: object
               version:
-                description: Version is the api server version to use.
+                description: Version is the kube scheduler version to use.
                 type: string
             required:
-            - authentication
-            - etcd
+            - componentConfig
             - replicas
-            - serviceAccount
             - version
             type: object
           status:
-            description: KubeAPIServerStatus defines the observed state of KubeAPIServer
+            description: KubeSchedulerStatus defines the observed state of KubeScheduler
             properties:
               availableReplicas:
                 format: int32

@@ -73,12 +73,6 @@ var _ = BeforeSuite(func() {
 	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = matryoshkav1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -123,6 +117,11 @@ func SetupTest(ctx context.Context) *corev1.Namespace {
 			Client: mgr.GetClient(),
 		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kube controller manager controller")
 
+		Expect((&KubeSchedulerReconciler{
+			Scheme: mgr.GetScheme(),
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr)).To(Succeed(), "failed to setup kube scheduler controller")
+
 		go func() {
 			Expect(mgr.Start(mgrCtx)).To(Succeed())
 		}()
@@ -144,4 +143,5 @@ var (
 	SamplesPath                         = modutils.Dir("github.com/onmetal/matryoshka", "config", "samples")
 	KubeAPIServerSampleFilename         = SamplesPath + "/matryoshka_v1alpha1_kubeapiserver.yaml"
 	KubeControllerManagerSampleFilename = SamplesPath + "/matryoshka_v1alpha1_kubecontrollermanager.yaml"
+	KubeSchedulerSampleFileName         = SamplesPath + "/matryoshka_v1alpha1_kubescheduler.yaml"
 )

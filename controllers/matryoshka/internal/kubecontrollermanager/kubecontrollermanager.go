@@ -189,7 +189,7 @@ func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, 
 		Containers: []corev1.Container{
 			*controllerManagerContainer,
 		},
-		TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
+		TerminationGracePeriodSeconds: pointer.Int64(30),
 		Volumes:                       r.kubeControllerManagerVolumes(kcm),
 	}
 	if err := common.ApplyPodOverlay(spec, &kcm.Spec.Overlay.Spec.PodOverlay); err != nil {

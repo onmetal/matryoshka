@@ -424,7 +424,7 @@ func (r *Resolver) deploymentPodSpec(ctx context.Context, s *memorystore.Store, 
 			*apiServerContainer,
 			*apiServerSidecar,
 		},
-		TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
+		TerminationGracePeriodSeconds: pointer.Int64(30),
 		Volumes:                       r.apiServerVolumes(server),
 	}
 

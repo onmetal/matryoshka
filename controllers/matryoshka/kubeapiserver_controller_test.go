@@ -73,7 +73,7 @@ var _ = Describe("KubeAPIServerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -82,7 +82,7 @@ var _ = Describe("KubeAPIServerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -91,7 +91,7 @@ var _ = Describe("KubeAPIServerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -100,7 +100,7 @@ var _ = Describe("KubeAPIServerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  tokenSecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},

@@ -75,7 +75,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "kcm-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -84,7 +84,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -93,7 +93,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  certAndKeySecretName,
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -102,7 +102,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "kcm-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -111,7 +111,7 @@ var _ = Describe("KubeControllerManagerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "kcm-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},

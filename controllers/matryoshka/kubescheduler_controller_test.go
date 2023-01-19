@@ -74,7 +74,7 @@ var _ = Describe("KubeSchedulerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "ks-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -83,7 +83,7 @@ var _ = Describe("KubeSchedulerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "ks-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},
@@ -92,7 +92,7 @@ var _ = Describe("KubeSchedulerController", func() {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName:  "ks-kubeconfig",
-						DefaultMode: pointer.Int32Ptr(420),
+						DefaultMode: pointer.Int32(420),
 					},
 				},
 			},

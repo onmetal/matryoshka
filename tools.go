@@ -19,6 +19,4 @@ package utils
 import (
 	// Use mockgen for generating mocks.
 	_ "github.com/golang/mock/mockgen"
-	// Use addlicense for adding license headers.
-	_ "github.com/google/addlicense"
 )

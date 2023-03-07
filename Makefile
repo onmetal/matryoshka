@@ -8,6 +8,11 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -42,18 +47,19 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-addlicense: ## Add license headers to all go files.
-	find . -name '*.go' -exec go run github.com/google/addlicense -c 'OnMetal authors' {} +
-
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
 vet: ## Run go vet against code.
 	go vet ./...
 
-.PHONY: checklicense
-checklicense: ## Check that every file has a license header present.
-	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
+.PHONY: add-license
+add-license: addlicense ## Add license headers to all go files.
+	find . -name '*.go' -exec $(ADDLICENSE) -c 'OnMetal authors' {} +
+
+.PHONY: check-license
+check-license: addlicense ## Check that every file has a license header present.
+	find . -name '*.go' -exec $(ADDLICENSE) -check -c 'OnMetal authors' {} +
 
 lint: ## Lint code
 	golangci-lint run ./...
@@ -62,14 +68,14 @@ lint: ## Lint code
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
 
-check: manifests generate addlicense lint test ## Lint and run tests.
+check: manifests generate check-license lint test ## Lint and run tests.
 
 ##@ Build
 
-build: generate fmt addlicense lint ## Build manager binary.
+build: generate fmt add-license lint ## Build manager binary.
 	go build -o bin/manager main.go
 
-run: manifests generate fmt addlicense ## Run a controller from your host.
+run: manifests generate fmt add-license ## Run a controller from your host.
 	go run ./main.go
 
 docker-build: test ## Build docker image with the manager.
@@ -93,11 +99,17 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
+## Tool Binaries
+ADDLICENSE ?= $(LOCALBIN)/addlicense
+
+## Tool Versions
+ADDLICENSE_VERSION ?= v1.1.1
+CONTROLLER_TOOLS_VERSION ?= v0.11.1
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 .PHONY: controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.11.1)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION))
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
@@ -122,3 +134,8 @@ GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
+
+.PHONY: addlicense
+addlicense: $(ADDLICENSE) ## Download addlicense locally if necessary.
+$(ADDLICENSE): $(LOCALBIN)
+	test -s $(LOCALBIN)/addlicense || GOBIN=$(LOCALBIN) go install github.com/google/addlicense@$(ADDLICENSE_VERSION)

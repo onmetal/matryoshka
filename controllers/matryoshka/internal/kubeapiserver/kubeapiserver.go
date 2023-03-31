@@ -348,7 +348,7 @@ func (r *Resolver) probeForPath(ctx context.Context, s *memorystore.Store, serve
 func (r *Resolver) apiServerContainer(server *matryoshkav1alpha1.KubeAPIServer) (*corev1.Container, error) {
 	container := &corev1.Container{
 		Name:    "kube-apiserver",
-		Image:   fmt.Sprintf("k8s.gcr.io/kube-apiserver:v%s", server.Spec.Version),
+		Image:   fmt.Sprintf("registry.k8s.io/kube-apiserver:v%s", server.Spec.Version),
 		Command: r.apiServerCommand(server),
 		Ports: []corev1.ContainerPort{
 			{

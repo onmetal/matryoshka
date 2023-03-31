@@ -131,7 +131,7 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 func (r *Resolver) schedulerContainer(_ context.Context, _ *memorystore.Store, ks *matryoshkav1alpha1.KubeScheduler) (*corev1.Container, error) {
 	container := &corev1.Container{
 		Name:         "kube-scheduler",
-		Image:        fmt.Sprintf("k8s.gcr.io/kube-scheduler:v%s", ks.Spec.Version),
+		Image:        fmt.Sprintf("registry.k8s.io/kube-scheduler:v%s", ks.Spec.Version),
 		Command:      r.kubeSchedulerCommand(ks),
 		VolumeMounts: r.kubeSchedulerVolumeMounts(ks),
 		LivenessProbe: &corev1.Probe{

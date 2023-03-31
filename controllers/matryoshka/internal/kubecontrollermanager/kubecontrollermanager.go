@@ -153,7 +153,7 @@ func (r *Resolver) updateDeploymentChecksums(ctx context.Context, s *memorystore
 func (r *Resolver) controllerManagerContainer(_ context.Context, _ *memorystore.Store, kcm *matryoshkav1alpha1.KubeControllerManager) (*corev1.Container, error) {
 	container := &corev1.Container{
 		Name:         "kube-controller-manager",
-		Image:        fmt.Sprintf("k8s.gcr.io/kube-controller-manager:v%s", kcm.Spec.Version),
+		Image:        fmt.Sprintf("registry.k8s.io/kube-controller-manager:v%s", kcm.Spec.Version),
 		Command:      r.kubeControllerManagerCommand(kcm),
 		VolumeMounts: r.kubeControllerManagerVolumeMounts(kcm),
 		LivenessProbe: &corev1.Probe{
